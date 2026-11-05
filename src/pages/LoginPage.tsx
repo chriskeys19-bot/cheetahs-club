@@ -50,10 +50,10 @@ export function LoginPage() {
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetah Cricket Club crest" width={168} height={168} />
+        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
         <div>
           <p className="hero-kicker">Members</p>
-          <h1>Cheetah Cricket Club</h1>
+          <h1>Cheetahs Cricket Club</h1>
           <p className="hero-copy">Sign in for announcements, fixtures, polls, and the suggestion box.</p>
         </div>
       </section>

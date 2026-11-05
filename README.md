@@ -1,6 +1,6 @@
-# Cheetah Cricket Club
+# Cheetahs Cricket Club
 
-Clubhouse for Cheetah Cricket Club. Members sign in with email and password, read announcements, activities, the winter schedule, and polls, and send a suggestion. The crest in `public/crest.jpg` is the brand mark.
+Clubhouse for Cheetahs Cricket Club. Members sign in with email and password, read announcements, activities, the winter schedule, and polls, and send a suggestion. The crest in `public/crest.jpg` is the brand mark.
 
 Suggestions are stored in Supabase. The browser does not call Google Sheets. See [docs/feedback-sync.md](docs/feedback-sync.md) for the sheet columns a later sync should write.
 
