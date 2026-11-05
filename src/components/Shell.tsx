@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { canManageClub, displayName } from '../lib/types.ts'
+import { InstagramLink } from './InstagramLink.tsx'
 import { RoleBadge } from './RoleBadge.tsx'
 
 export function Shell() {
@@ -28,13 +29,16 @@ export function Shell() {
   return (
     <div className="shell">
       <header className="topbar">
-        <NavLink to="/" className="brand" end>
-          <img src="/crest.jpg" alt="" width={56} height={56} />
-          <span className="brand-text">
-            <span className="brand-kicker">Cheetahs</span>
-            <span className="brand-name">Cricket Club</span>
-          </span>
-        </NavLink>
+        <div className="topbar-brand">
+          <NavLink to="/" className="brand" end>
+            <img src="/crest.jpg" alt="" width={56} height={56} />
+            <span className="brand-text">
+              <span className="brand-kicker">Cheetahs</span>
+              <span className="brand-name">Cricket Club</span>
+            </span>
+          </NavLink>
+          <InstagramLink />
+        </div>
         <div className="topbar-user">
           <div className="identity">
             <span className="identity-name">{name}</span>
