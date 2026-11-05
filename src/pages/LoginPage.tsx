@@ -54,7 +54,7 @@ export function LoginPage() {
         <div>
           <p className="hero-kicker">Members</p>
           <h1>Cheetahs Cricket Club</h1>
-          <p className="hero-copy">Sign in for announcements, fixtures, polls, and the suggestion box.</p>
+          <p className="hero-copy">Sign in for announcements, fixtures, polls, and app feedback.</p>
         </div>
       </section>
       <section className="login-panel">

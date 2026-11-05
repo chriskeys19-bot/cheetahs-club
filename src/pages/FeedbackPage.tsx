@@ -30,32 +30,22 @@ export function FeedbackPage() {
   return (
     <div className="page narrow">
       <header className="page-intro">
-        <p className="kicker">Every role</p>
+        <p className="kicker">App</p>
         <h1>Feedback</h1>
-        <p className="lede">
-          Send a suggestion to the club. It is saved in Supabase, and you can read the ones you
-          have already sent.
-        </p>
+        <p className="lede">Feature request / feedback on the app.</p>
       </header>
-      <FeedbackComposer onSubmitted={refresh} />
-      <section className="panel recent" aria-labelledby="history-heading">
-        <div className="section-heading">
-          <p className="kicker">History</p>
-          <h2 id="history-heading">Your suggestions</h2>
+      <section className="panel feedback-desk">
+        <FeedbackComposer onSubmitted={refresh} />
+        <div className="feedback-history" aria-labelledby="history-heading">
+          <h2 id="history-heading">Your requests</h2>
+          {rows === null && !error ? <p className="empty-copy">Loading feedback…</p> : null}
+          {error ? (
+            <p className="banner banner-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {rows && !error ? <FeedbackList rows={rows} empty="No feedback yet." showSubmitter={false} /> : null}
         </div>
-        {rows === null && !error ? <p className="empty-copy">Loading suggestions…</p> : null}
-        {error ? (
-          <p className="banner banner-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {rows && !error ? (
-          <FeedbackList
-            rows={rows}
-            empty="Nothing in the box yet. The first note sets the tone."
-            showSubmitter={false}
-          />
-        ) : null}
       </section>
     </div>
   )

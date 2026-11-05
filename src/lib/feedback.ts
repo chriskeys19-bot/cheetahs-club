@@ -3,13 +3,54 @@ import { supabase } from './supabase.ts'
 
 const MAX_BODY = 2000
 
+export const FEEDBACK_CATEGORIES = [
+  { id: 'feature', label: 'Feature' },
+  { id: 'bug', label: 'Bug' },
+  { id: 'other', label: 'Other' },
+] as const
+
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number]['id']
+
+const CATEGORY_PREFIX: Record<FeedbackCategory, string> = {
+  feature: '[Feature] ',
+  bug: '[Bug] ',
+  other: '[Other] ',
+}
+
+const MAX_PREFIX = CATEGORY_PREFIX.feature.length
+
+export const MAX_FEEDBACK_TEXT = MAX_BODY - MAX_PREFIX
+
+export function feedbackLengthMessage(): string {
+  return `Write feedback between 1 and ${MAX_FEEDBACK_TEXT} characters.`
+}
+
+export function feedbackCategoryLabel(category: FeedbackCategory): string {
+  return FEEDBACK_CATEGORIES.find((item) => item.id === category)?.label ?? 'Other'
+}
+
+// Category stays inside `body` so stamp_feedback and the sheet's Suggestion column stay as they are.
+export function composeFeedbackBody(category: FeedbackCategory, text: string): string {
+  return `${CATEGORY_PREFIX[category]}${text.trim()}`
+}
+
+const CATEGORY_PATTERN = /^\[(Feature|Bug|Other)\]\s+/
+
+export function splitFeedbackBody(body: string): { category: FeedbackCategory | null; text: string } {
+  const match = CATEGORY_PATTERN.exec(body)
+  if (!match) return { category: null, text: body }
+  const label = match[1]
+  const category: FeedbackCategory = label === 'Feature' ? 'feature' : label === 'Bug' ? 'bug' : 'other'
+  return { category, text: body.slice(match[0].length) }
+}
+
 export function feedbackErrorMessage(message: string): string {
   const lower = message.toLowerCase()
   if (lower.includes('jwt') || lower.includes('not authenticated') || lower.includes('permission')) {
-    return 'Sign in again, then send the suggestion.'
+    return 'Sign in again, then send your feedback.'
   }
   if (lower.includes('feedback_body_not_blank') || lower.includes('check constraint')) {
-    return 'Write a suggestion between 1 and 2000 characters.'
+    return feedbackLengthMessage()
   }
   return message
 }
@@ -58,13 +99,15 @@ export async function submitFeedback(input: {
   name: string
   email: string | null
   role: string
+  category: FeedbackCategory
   body: string
 }): Promise<string | null> {
-  if (!supabase) return 'Supabase is not configured.'
-  const body = input.body.trim()
-  if (body.length < 1 || body.length > MAX_BODY) {
-    return 'Write a suggestion between 1 and 2000 characters.'
+  const text = input.body.trim()
+  const body = composeFeedbackBody(input.category, text)
+  if (text.length < 1 || text.length > MAX_FEEDBACK_TEXT || body.length > MAX_BODY) {
+    return feedbackLengthMessage()
   }
+  if (!supabase) return 'Supabase is not configured.'
 
   const { error } = await supabase.from('feedback').insert({
     user_id: input.userId,
