@@ -95,7 +95,8 @@ export function MembersPage() {
           </p>
         ) : null}
         <RoleNote ready={profileReady} restricted={!isAdmin}>
-          Captains and players cannot change club roles. Captains can still invite players.
+          Captains and players cannot change club roles. Captains can still invite players and add
+          an existing player to another side.
         </RoleNote>
         {isAdmin ? (
           <div>
@@ -107,7 +108,8 @@ export function MembersPage() {
               Your own role stays as it is. The last admin stays an admin.
             </p>
             <p className="fine-print">
-              <Link to="/invites">Invites</Link> still add players.
+              <Link to="/invites">Invites</Link> still add players, and they place an existing member on
+              another side.
             </p>
             {rows === null && !error ? <p className="empty-copy">Loading members…</p> : null}
             {error ? (

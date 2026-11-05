@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
+import { AddToSide } from '../components/AddToSide.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatWhen } from '../lib/format.ts'
-import { createInvite, loadPendingInvites, revokeInvite, teamName } from '../lib/invites.ts'
+import { createInvite, loadPendingInvites, revokeInvite, sendInviteEmail, teamName } from '../lib/invites.ts'
 import { loadTeams } from '../lib/teams.ts'
 import { canManageClub, joinUrl, type ClubInvite, type Team } from '../lib/types.ts'
 
@@ -19,9 +20,13 @@ export function InvitesPage() {
   const [teamId, setTeamId] = useState('')
   const [busy, setBusy] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [emailingId, setEmailingId] = useState<string | null>(null)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [fresh, setFresh] = useState<ClubInvite | null>(null)
+  const [mailState, setMailState] = useState<'sending' | 'sent' | 'failed'>('sent')
+  const [notice, setNotice] = useState<string | null>(null)
   const [listToken, setListToken] = useState(0)
+  const [suggestedEmail, setSuggestedEmail] = useState<string | null>(null)
 
   useEffect(() => {
     if (!staff) return
@@ -71,21 +76,55 @@ export function InvitesPage() {
     sending.current = true
     setBusy(true)
     setError(null)
-    const { invite, error: nextError } = await createInvite({
-      email: nextEmail,
-      teamId: teamId || null,
-    })
-    sending.current = false
-    setBusy(false)
-    if (nextError || !invite) {
-      setError(nextError ?? 'The invite could not be created.')
+    setNotice(null)
+    try {
+      const { invite, error: nextError, existingAccount } = await createInvite({
+        email: nextEmail,
+        teamId: teamId || null,
+      })
+      if (nextError || !invite) {
+        setError(nextError ?? 'The invite could not be created.')
+        if (existingAccount) {
+          setSuggestedEmail(nextEmail)
+          document.getElementById('add-to-side')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+        return
+      }
+      setSuggestedEmail(null)
+      setEmail('')
+      setTeamId('')
+      setFresh(invite)
+      setMailState('sending')
+      setCopiedId(null)
+      setListToken((value) => value + 1)
+      const sendError = await sendInviteEmail(invite.id)
+      if (sendError) {
+        setMailState('failed')
+        setError(sendError)
+        return
+      }
+      setMailState('sent')
+      setNotice(`Invite emailed to ${invite.email}.`)
+    } finally {
+      sending.current = false
+      setBusy(false)
+    }
+  }
+
+  async function onEmail(invite: ClubInvite) {
+    if (emailingId || busy) return
+    setEmailingId(invite.id)
+    setError(null)
+    setNotice(null)
+    const message = await sendInviteEmail(invite.id)
+    setEmailingId(null)
+    if (message) {
+      setError(message)
+      if (fresh?.id === invite.id) setMailState('failed')
       return
     }
-    setEmail('')
-    setTeamId('')
-    setFresh(invite)
-    setCopiedId(null)
-    setListToken((value) => value + 1)
+    if (fresh?.id === invite.id) setMailState('sent')
+    setNotice(`Invite emailed to ${invite.email}.`)
   }
 
   async function onRevoke(invite: ClubInvite) {
@@ -98,7 +137,10 @@ export function InvitesPage() {
       setError(message)
       return
     }
-    if (fresh?.id === invite.id) setFresh(null)
+    if (fresh?.id === invite.id) {
+      setFresh(null)
+      setNotice(null)
+    }
     setListToken((value) => value + 1)
   }
 
@@ -108,22 +150,23 @@ export function InvitesPage() {
         <p className="kicker">Clubhouse</p>
         <h1>Invites</h1>
         <p className="lede">
-          Invite a player by email. They open the join link, choose a password, and get a player
-          account. This does not make captains or admins.
+          Captains and admins email a join link to a new player, or place someone who already
+          has an account on another side. A join link always creates a player.
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins send join links. Ask one of them for an invite.
+        Captains and admins send join links and add existing players to a side. Ask one of them.
       </RoleNote>
       {staff ? (
         <form className="composer" onSubmit={onCreate}>
           <div className="section-heading">
             <p className="kicker">New</p>
-            <h2>Invite player</h2>
+            <h2>Invite a new player</h2>
           </div>
           <p className="lede">
-            The club does not email the link yet. After you create it, copy the join URL and send
-            it to that person.
+            Use this for someone who does not have a club account yet. We email the join link to
+            them. It creates a player, not a captain or admin. You can still copy the link if the
+            email does not go through.
           </p>
           <label htmlFor={emailId}>Email</label>
           <input
@@ -152,9 +195,14 @@ export function InvitesPage() {
             ))}
           </select>
           <button type="submit" className="button button-gold" disabled={busy}>
-            {busy ? 'Creating…' : 'Invite player'}
+            {busy ? 'Sending…' : 'Invite player'}
           </button>
         </form>
+      ) : null}
+      {notice ? (
+        <p className="banner banner-success" role="status">
+          {notice}
+        </p>
       ) : null}
       {error ? (
         <p className="banner banner-error" role="alert">
@@ -164,23 +212,37 @@ export function InvitesPage() {
       {fresh ? (
         <section className="panel" aria-labelledby="fresh-invite-heading">
           <div className="section-heading">
-            <p className="kicker">Share this</p>
-            <h2 id="fresh-invite-heading">Join link</h2>
+            <p className="kicker">{mailState === 'sent' ? 'Emailed' : 'Join link'}</p>
+            <h2 id="fresh-invite-heading">{mailState === 'sent' ? 'Invite emailed' : 'Join link'}</h2>
           </div>
-          <p className="lede">
-            Send this to {fresh.email}. It expires {formatWhen(fresh.expires_at)} and works once.
-          </p>
+          {mailState === 'sending' ? <p className="lede">Sending the invite to {fresh.email}…</p> : null}
+          {mailState === 'sent' ? (
+            <p className="lede">
+              Invite emailed to {fresh.email}. It expires {formatWhen(fresh.expires_at)} and works once.
+            </p>
+          ) : null}
+          {mailState === 'failed' ? (
+            <p className="lede">
+              The invite for {fresh.email} is saved. Copy the join link and send it yourself. It expires{' '}
+              {formatWhen(fresh.expires_at)} and works once.
+            </p>
+          ) : null}
           <div className="join-link">
             <label className="sr-only" htmlFor="fresh-join-url">
               Join URL
             </label>
             <input id="fresh-join-url" readOnly value={joinUrl(fresh.token)} spellCheck={false} />
-            <button type="button" className="button button-gold" onClick={() => copyLink(fresh)}>
+            <button
+              type="button"
+              className={mailState === 'failed' ? 'button button-gold' : 'button-quiet'}
+              onClick={() => copyLink(fresh)}
+            >
               {copiedId === fresh.id ? 'Copied' : 'Copy join link'}
             </button>
           </div>
         </section>
       ) : null}
+      {staff ? <AddToSide teams={teams} suggestedEmail={suggestedEmail} /> : null}
       {staff ? (
         <section className="panel" aria-labelledby="pending-heading">
           <div className="section-heading">
@@ -209,7 +271,15 @@ export function InvitesPage() {
                     />
                   </div>
                   <div className="card-actions">
-                    <button type="button" className="button button-gold" onClick={() => copyLink(invite)}>
+                    <button
+                      type="button"
+                      className="button button-gold"
+                      onClick={() => onEmail(invite)}
+                      disabled={emailingId === invite.id || busy}
+                    >
+                      {emailingId === invite.id ? 'Sending…' : 'Email join link'}
+                    </button>
+                    <button type="button" className="button-quiet" onClick={() => copyLink(invite)}>
                       {copiedId === invite.id ? 'Copied' : 'Copy join link'}
                     </button>
                     <button

@@ -75,7 +75,7 @@ export function HomePage() {
         <p className="lede">{roleLine}</p>
         {profile && canManageClub(profile.role) ? (
           <p className="fine-print">
-            <Link to="/invites">Invite a player</Link>
+            <Link to="/invites">Invite a player or add them to a side</Link>
           </p>
         ) : null}
       </header>

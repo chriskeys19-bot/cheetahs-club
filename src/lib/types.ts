@@ -53,6 +53,10 @@ export type ClubMember = {
   role: ClubRole
 }
 
+export type RosterMember = ClubMember & {
+  team_ids: string[]
+}
+
 export const INVITE_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const
 
 export type InviteStatus = (typeof INVITE_STATUSES)[number]
@@ -71,6 +75,7 @@ export function isInviteStatus(value: unknown): value is InviteStatus {
   return value === 'pending' || value === 'accepted' || value === 'revoked' || value === 'expired'
 }
 
+// Keep this in step with APP_ORIGIN in supabase/functions/send-invite-email.
 export const JOIN_SITE = 'https://cheetahs-club.pages.dev'
 
 export function joinUrl(token: string): string {
