@@ -34,6 +34,75 @@ export function roleLabel(role: ClubRole): string {
   return 'Player'
 }
 
+export function canManageClub(role: ClubRole | null | undefined): boolean {
+  return role === 'admin' || role === 'captain'
+}
+
+export type Announcement = {
+  id: string
+  title: string
+  body: string
+  author_id: string | null
+  pinned: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type Activity = {
+  id: string
+  title: string
+  description: string | null
+  starts_at: string
+  ends_at: string | null
+  location: string | null
+  team_id: string | null
+  created_by: string | null
+  created_at: string
+}
+
+export type ScheduleEventType = 'league_game' | 'umpiring'
+
+export type ScheduleEvent = {
+  id: string
+  team_id: string | null
+  umpiring_team_id: string | null
+  game_date: string
+  start_time: string
+  starts_at: string
+  match_format: string | null
+  ground: string
+  address: string | null
+  opponent: string
+  event_type: ScheduleEventType
+  division: string | null
+  notes: string | null
+}
+
+export type PollStatus = 'open' | 'closed'
+
+export type Poll = {
+  id: string
+  question: string
+  description: string | null
+  created_by: string | null
+  created_at: string
+  closes_at: string | null
+  status: PollStatus
+}
+
+export type PollOption = {
+  id: string
+  poll_id: string
+  label: string
+  sort_order: number
+}
+
+export type PollTally = {
+  poll_id: string
+  option_id: string
+  votes: number
+}
+
 export function displayName(profile: Profile | null, email: string | null | undefined): string {
   const name = profile?.full_name?.trim()
   if (name) return name

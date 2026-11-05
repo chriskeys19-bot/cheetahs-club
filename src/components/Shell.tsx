@@ -50,6 +50,10 @@ export function Shell() {
         <NavLink to="/" end>
           Home
         </NavLink>
+        <NavLink to="/announcements">Announcements</NavLink>
+        <NavLink to="/activities">Activities</NavLink>
+        <NavLink to="/schedules">Schedules</NavLink>
+        <NavLink to="/polls">Polls</NavLink>
         <NavLink to="/feedback">Feedback</NavLink>
         <NavLink to="/admin">Admin</NavLink>
       </nav>
