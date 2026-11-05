@@ -7,6 +7,7 @@ import { ActivitiesPage } from './pages/ActivitiesPage.tsx'
 import { AdminPage } from './pages/AdminPage.tsx'
 import { AnnouncementsPage } from './pages/AnnouncementsPage.tsx'
 import { FeedbackPage } from './pages/FeedbackPage.tsx'
+import { DuesPage } from './pages/DuesPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/polls" element={<PollsPage />} />
+              <Route path="/dues" element={<DuesPage />} />
               <Route path="/feedback" element={<FeedbackPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/members" element={<MembersPage />} />

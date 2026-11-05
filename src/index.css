@@ -1073,6 +1073,79 @@ a.info-card:focus-visible {
   }
 }
 
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stat-grid li {
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.stat-grid span {
+  display: block;
+  color: var(--navy);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stat-grid strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--navy);
+  font-family: var(--display);
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.money-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 0;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.pick-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.pick-row {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.pick-row .amount-input {
+  margin-left: 34px;
+}
+
+textarea.note-field {
+  min-height: 96px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;

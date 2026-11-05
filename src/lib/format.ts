@@ -23,6 +23,33 @@ export function formatPacific(iso: string): string {
   }).format(date)
 }
 
+export function pacificDateInput(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date)
+  const map: Record<string, string> = {}
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value
+  }
+  if (!map.year || !map.month || !map.day) return ''
+  return `${map.year}-${map.month}-${map.day}`
+}
+
+export function formatDateOnly(isoDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate)
+  if (!match) return isoDate
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(utc)
+}
+
 const WEEKDAY_INDEX: Record<string, number> = {
   Sun: 0,
   Mon: 1,

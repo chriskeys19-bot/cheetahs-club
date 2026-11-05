@@ -1,13 +1,13 @@
 # Cheetahs Cricket Club
 
-Clubhouse for Cheetahs Cricket Club. Members sign in with email and password, read announcements, activities, the winter schedule, and polls, and send feedback on the app. The crest in `public/crest.jpg` is the brand mark.
+Clubhouse for Cheetahs Cricket Club. Members sign in with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.jpg` is the brand mark.
 
 Feedback is stored in Supabase. The browser does not call Google Sheets. See [docs/feedback-sync.md](docs/feedback-sync.md) for the sheet columns a later sync should write.
 
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/join/:token`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
+- React Router (`/login`, `/join/:token`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -47,7 +47,7 @@ Captains and admins invite players from **Invites**. Creating an invite stores a
 
 Admins open **Admin → Members** to see each member's name, email, and role (`player`, `captain`, or `admin`). They can switch a member between player and captain. An admin cannot change their own role, and the last admin cannot be removed. Captains and players cannot change roles. Captains still invite players from **Invites**.
 
-The same two variables power announcements, activities, schedules, and polls. Do not add a service role key or a Google Sheets credential to the Vite env. Schedule rows are seeded in Postgres; the browser only reads and writes Supabase.
+The same two variables power announcements, activities, schedules, polls, and dues. Do not add a service role key or a Google Sheets credential to the Vite env. Schedule rows are seeded in Postgres; the browser only reads and writes Supabase.
 
 ## Production build
 
@@ -72,7 +72,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -80,7 +80,9 @@ Set these environment variables on the Pages project **before** the build. Vite 
 
 ## Database
 
-SQL lives in `supabase/migrations` and is already applied on the club project. Filename order matches the remote migration history. On a brand-new database, apply that directory with the Supabase CLI (`supabase db push`). Do not re-apply the files by hand against the existing project.
+SQL lives in `supabase/migrations`. Files through the invite workflow are already applied on the club project. Filename order matches the remote migration history. On a brand-new database, apply that directory with the Supabase CLI (`supabase db push`). Do not re-apply a file that is already in the remote history.
+
+Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Apply that file to project `lutcbvzunjcosncvdyke` before using the Dues page (`supabase db push`, or paste the file into the Supabase SQL editor). Amounts are USD cents. The page does not call a payment provider.
 
 `public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity.
 
