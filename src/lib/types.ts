@@ -53,6 +53,10 @@ export type ClubMember = {
   role: ClubRole
 }
 
+export type RosterMember = ClubMember & {
+  team_ids: string[]
+}
+
 export const INVITE_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const
 
 export type InviteStatus = (typeof INVITE_STATUSES)[number]

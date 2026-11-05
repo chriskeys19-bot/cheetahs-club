@@ -278,6 +278,12 @@ a.button {
   gap: 12px;
 }
 
+.add-side-roster {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
 .member-head {
   display: flex;
   justify-content: space-between;

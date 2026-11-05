@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
+import { AddToSide } from '../components/AddToSide.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatWhen } from '../lib/format.ts'
 import { createInvite, loadPendingInvites, revokeInvite, teamName } from '../lib/invites.ts'
@@ -22,6 +23,7 @@ export function InvitesPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [fresh, setFresh] = useState<ClubInvite | null>(null)
   const [listToken, setListToken] = useState(0)
+  const [suggestedEmail, setSuggestedEmail] = useState<string | null>(null)
 
   useEffect(() => {
     if (!staff) return
@@ -71,7 +73,7 @@ export function InvitesPage() {
     sending.current = true
     setBusy(true)
     setError(null)
-    const { invite, error: nextError } = await createInvite({
+    const { invite, error: nextError, existingAccount } = await createInvite({
       email: nextEmail,
       teamId: teamId || null,
     })
@@ -79,8 +81,13 @@ export function InvitesPage() {
     setBusy(false)
     if (nextError || !invite) {
       setError(nextError ?? 'The invite could not be created.')
+      if (existingAccount) {
+        setSuggestedEmail(nextEmail)
+        document.getElementById('add-to-side')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
       return
     }
+    setSuggestedEmail(null)
     setEmail('')
     setTeamId('')
     setFresh(invite)
@@ -108,22 +115,22 @@ export function InvitesPage() {
         <p className="kicker">Clubhouse</p>
         <h1>Invites</h1>
         <p className="lede">
-          Invite a player by email. They open the join link, choose a password, and get a player
-          account. This does not make captains or admins.
+          Captains and admins invite a new player with a join link, or place someone who already
+          has an account on another side. A join link always creates a player.
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins send join links. Ask one of them for an invite.
+        Captains and admins send join links and add existing players to a side. Ask one of them.
       </RoleNote>
       {staff ? (
         <form className="composer" onSubmit={onCreate}>
           <div className="section-heading">
             <p className="kicker">New</p>
-            <h2>Invite player</h2>
+            <h2>Invite a new player</h2>
           </div>
           <p className="lede">
-            The club does not email the link yet. After you create it, copy the join URL and send
-            it to that person.
+            Use this for someone who does not have a club account yet. The club does not email the
+            link. Copy the join URL and send it to them. It creates a player, not a captain or admin.
           </p>
           <label htmlFor={emailId}>Email</label>
           <input
@@ -161,6 +168,7 @@ export function InvitesPage() {
           {error}
         </p>
       ) : null}
+      {staff ? <AddToSide teams={teams} suggestedEmail={suggestedEmail} /> : null}
       {fresh ? (
         <section className="panel" aria-labelledby="fresh-invite-heading">
           <div className="section-heading">

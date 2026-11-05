@@ -11,7 +11,7 @@ export type InvitePreview = {
 function inviteError(message: string): string {
   const lower = message.toLowerCase()
   if (lower.includes('already has a club account') || lower.includes('already registered')) {
-    return 'That email already has a club account.'
+    return 'That email already has a club account. Add them to a side below instead of sending a new join link.'
   }
   if (lower.includes('invites_pending_email') || (lower.includes('duplicate') && lower.includes('invite'))) {
     return 'An invite is already waiting for that email. Revoke it before sending another.'
@@ -57,18 +57,23 @@ export async function loadPendingInvites(): Promise<{ rows: ClubInvite[]; error:
 export async function createInvite(input: {
   email: string
   teamId: string | null
-}): Promise<{ invite: ClubInvite | null; error: string | null }> {
-  if (!supabase) return { invite: null, error: 'Supabase is not configured.' }
+}): Promise<{ invite: ClubInvite | null; error: string | null; existingAccount: boolean }> {
+  if (!supabase) return { invite: null, error: 'Supabase is not configured.', existingAccount: false }
   const email = input.email.trim().toLowerCase()
   const { data, error } = await supabase
     .from('invites')
     .insert({ email, team_id: input.teamId })
     .select(INVITE_COLUMNS)
     .single()
-  if (error) return { invite: null, error: inviteError(error.message) }
+  if (error) {
+    const existingAccount = /already has a club account|already registered/i.test(error.message)
+    return { invite: null, error: inviteError(error.message), existingAccount }
+  }
   const invite = parseInvite(data)
-  if (!invite) return { invite: null, error: 'The invite was saved but could not be read back.' }
-  return { invite, error: null }
+  if (!invite) {
+    return { invite: null, error: 'The invite was saved but could not be read back.', existingAccount: false }
+  }
+  return { invite, error: null, existingAccount: false }
 }
 
 export async function revokeInvite(id: string): Promise<string | null> {
