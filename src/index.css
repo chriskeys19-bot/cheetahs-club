@@ -1063,6 +1063,21 @@ a.info-card:focus-visible {
   color: var(--navy);
 }
 
+.recurrence {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--cream);
+  margin: 8px 0 0;
+  padding: 12px 14px 14px;
+  min-inline-size: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.recurrence .choice-list {
+  margin-top: 4px;
+}
+
 .option-set {
   border: 0;
   margin: 8px 0 0;

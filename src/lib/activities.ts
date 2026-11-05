@@ -22,13 +22,14 @@ function parseActivities(value: unknown): Activity[] {
       team_id: typeof row.team_id === 'string' ? row.team_id : null,
       created_by: typeof row.created_by === 'string' ? row.created_by : null,
       created_at: row.created_at,
+      series_id: typeof row.series_id === 'string' ? row.series_id : null,
     })
   }
   return rows
 }
 
 const columns =
-  'id, title, description, starts_at, ends_at, location, team_id, created_by, created_at'
+  'id, title, description, starts_at, ends_at, location, team_id, created_by, created_at, series_id'
 
 export async function loadActivities(range: {
   from: string
@@ -63,6 +64,32 @@ export async function saveActivity(input: {
   const { error } = input.id
     ? await supabase.from('activities').update(payload).eq('id', input.id)
     : await supabase.from('activities').insert(payload)
+  return error ? actionError(error.message) : null
+}
+
+export async function saveActivitySeries(
+  inputs: Array<{
+    title: string
+    description: string | null
+    starts_at: string
+    ends_at: string | null
+    location: string | null
+    team_id: string | null
+  }>,
+  seriesId: string,
+): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  if (inputs.length < 1) return 'Choose at least one date.'
+  const rows = inputs.map((input) => ({
+    title: input.title.trim(),
+    description: input.description,
+    starts_at: input.starts_at,
+    ends_at: input.ends_at,
+    location: input.location,
+    team_id: input.team_id,
+    series_id: seriesId,
+  }))
+  const { error } = await supabase.from('activities').insert(rows)
   return error ? actionError(error.message) : null
 }
 

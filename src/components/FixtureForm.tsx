@@ -1,5 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
-import { saveFixture } from '../lib/schedules.ts'
+import { RecurrenceFields } from './RecurrenceFields.tsx'
+import { expandCadence, type Cadence } from '../lib/recurrence.ts'
+import { saveFixture, saveFixtureSeries, type FixtureInput } from '../lib/schedules.ts'
 import type { ScheduleEvent, ScheduleEventType, Team } from '../lib/types.ts'
 
 function clock(value: string): string {
@@ -41,6 +43,11 @@ export function FixtureForm({
   const [address, setAddress] = useState(initial?.address ?? '')
   const [division, setDivision] = useState(initial?.division ?? '')
   const [notes, setNotes] = useState(initial?.notes ?? '')
+  const [recurring, setRecurring] = useState(false)
+  const [cadence, setCadence] = useState<Cadence>('weekly')
+  const [recurMode, setRecurMode] = useState<'until' | 'count'>('count')
+  const [recurUntil, setRecurUntil] = useState('')
+  const [recurCount, setRecurCount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -102,10 +109,7 @@ export function FixtureForm({
       setError('One of the fields is too long.')
       return
     }
-    sending.current = true
-    setBusy(true)
-    setError(null)
-    const message = await saveFixture({
+    const draft: FixtureInput = {
       id: initial?.id,
       team_id: selectedTeam.length > 0 ? selectedTeam : null,
       event_type: eventType,
@@ -118,7 +122,33 @@ export function FixtureForm({
       opponent: nextOpponent,
       division: eventType === 'umpiring' && nextDivision.length > 0 ? nextDivision : null,
       notes: nextNotes.length > 0 ? nextNotes : null,
-    })
+    }
+    let seriesDates: string[] | null = null
+    if (!initial && recurring) {
+      if (recurMode === 'count' && !/^\d+$/.test(recurCount)) {
+        setError('Enter a whole number of occurrences from 1 to 52.')
+        return
+      }
+      const expanded = expandCadence(
+        date,
+        cadence,
+        recurMode === 'count' ? { kind: 'count', count: Number(recurCount) } : { kind: 'until', until: recurUntil },
+      )
+      if ('error' in expanded) {
+        setError(expanded.error)
+        return
+      }
+      seriesDates = expanded.dates
+    }
+    sending.current = true
+    setBusy(true)
+    setError(null)
+    const message = seriesDates
+      ? await saveFixtureSeries(
+          seriesDates.map((gameDate) => ({ ...draft, id: undefined, game_date: gameDate })),
+          crypto.randomUUID(),
+        )
+      : await saveFixture(draft)
     sending.current = false
     setBusy(false)
     if (message) {
@@ -243,6 +273,23 @@ export function FixtureForm({
         onChange={(event) => setAddress(event.target.value)}
         maxLength={240}
       />
+      {!initial ? (
+        <RecurrenceFields
+          idPrefix={titleId}
+          noun="event"
+          enabled={recurring}
+          cadence={cadence}
+          mode={recurMode}
+          until={recurUntil}
+          count={recurCount}
+          anchorDate={date}
+          onEnabled={setRecurring}
+          onCadence={setCadence}
+          onMode={setRecurMode}
+          onUntil={setRecurUntil}
+          onCount={setRecurCount}
+        />
+      ) : null}
       <label htmlFor={`${titleId}-notes`}>Notes</label>
       <textarea
         id={`${titleId}-notes`}
@@ -257,7 +304,7 @@ export function FixtureForm({
           Cancel
         </button>
         <button type="submit" className="button button-gold" disabled={busy}>
-          {busy ? 'Saving…' : initial ? 'Save event' : 'Add event'}
+          {busy ? 'Saving…' : initial ? 'Save event' : recurring ? 'Add events' : 'Add event'}
         </button>
       </div>
       {error ? (

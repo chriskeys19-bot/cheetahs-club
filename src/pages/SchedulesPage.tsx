@@ -151,7 +151,7 @@ export function SchedulesPage() {
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins can add, edit, or remove events. Players can read the list.
+        Captains and admins can add, edit, or remove events. Recurring adds one row per date. Players can read the list.
       </RoleNote>
       {staff && (composing || editing) ? (
         <FixtureForm
@@ -228,6 +228,7 @@ export function SchedulesPage() {
                     <span className="tag tag-gold">{when.time}</span>
                     <span className="tag tag-navy">{eventKindLabel(row.event_type)}</span>
                     <span className="tag">{sideName ? sideName.replace(/^Cheetahs /, '') : 'Club-wide'}</span>
+                    {row.series_id ? <span className="tag">Series</span> : null}
                     {row.match_format ? <span className="tag">{row.match_format}</span> : null}
                     {row.division ? <span className="tag">{row.division}</span> : null}
                     {played ? <span className="tag">Played</span> : null}
