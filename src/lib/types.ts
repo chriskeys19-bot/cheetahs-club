@@ -38,6 +38,21 @@ export function canManageClub(role: ClubRole | null | undefined): boolean {
   return role === 'admin' || role === 'captain'
 }
 
+export const ASSIGNABLE_ROLES = ['player', 'captain'] as const
+
+export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number]
+
+export function isAssignableRole(role: ClubRole): role is AssignableRole {
+  return role === 'player' || role === 'captain'
+}
+
+export type ClubMember = {
+  id: string
+  full_name: string | null
+  email: string | null
+  role: ClubRole
+}
+
 export const INVITE_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const
 
 export type InviteStatus = (typeof INVITE_STATUSES)[number]

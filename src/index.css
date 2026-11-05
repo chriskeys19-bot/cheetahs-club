@@ -250,6 +250,72 @@ input[readonly] {
   font-size: 0.85rem;
 }
 
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  text-decoration: none;
+}
+
+.admin-nav {
+  margin-top: -8px;
+}
+
+.admin-nav a {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.admin-nav a.active {
+  background: var(--navy);
+  color: var(--cream);
+  border-color: var(--navy);
+}
+
+.member-card {
+  gap: 12px;
+}
+
+.member-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.member-identity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.member-email {
+  overflow-wrap: anywhere;
+}
+
+.member-role {
+  display: grid;
+  gap: 8px;
+}
+
+.member-role label {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+@media (min-width: 720px) {
+  .member-role {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .member-role label {
+    grid-column: 1 / -1;
+  }
+}
+
 .button {
   border: 0;
   border-radius: 999px;

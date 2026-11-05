@@ -8,6 +8,7 @@ import { AdminPage } from './pages/AdminPage.tsx'
 import { AnnouncementsPage } from './pages/AnnouncementsPage.tsx'
 import { FeedbackPage } from './pages/FeedbackPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
+import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/polls" element={<PollsPage />} />
               <Route path="/feedback" element={<FeedbackPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/admin/members" element={<MembersPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>

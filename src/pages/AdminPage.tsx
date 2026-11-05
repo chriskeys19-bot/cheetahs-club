@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { AdminNav } from '../components/AdminNav.tsx'
 import { FeedbackList } from '../components/FeedbackList.tsx'
 import { loadFeedback } from '../lib/feedback.ts'
 import type { FeedbackRow } from '../lib/types.ts'
@@ -30,10 +31,11 @@ export function AdminPage() {
         <p className="kicker">Club office</p>
         <h1>Admin</h1>
         <p className="lede">
-          Announcements, activities, schedules, and polls live on their own boards. This desk holds
-          app feedback for admins.
+          Announcements, activities, schedules, and polls live on their own boards. Members and app
+          feedback stay with the club office.
         </p>
       </header>
+      {isAdmin ? <AdminNav /> : null}
       <section className="panel">
         {!profileReady ? <p className="empty-copy">Checking your role…</p> : null}
         {profileError ? (
