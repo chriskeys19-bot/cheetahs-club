@@ -26,7 +26,7 @@ export function AdminPage() {
   }, [isAdmin])
 
   return (
-    <div className="page narrow">
+    <div className="page narrow admin-page">
       <header className="page-intro">
         <p className="kicker">Club office</p>
         <h1>Admin</h1>

@@ -157,7 +157,19 @@ export function InvitesPage() {
       <RoleNote ready={profileReady} restricted={!staff}>
         Captains and admins send join links and add existing players to a side. Ask one of them.
       </RoleNote>
+      {notice ? (
+        <p className="banner banner-success" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="banner banner-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       {staff ? (
+        <div className="desk-split">
+        <div className="desk-main">
         <form className="composer" onSubmit={onCreate}>
           <div className="section-heading">
             <p className="kicker">New</p>
@@ -198,17 +210,6 @@ export function InvitesPage() {
             {busy ? 'Sending…' : 'Invite player'}
           </button>
         </form>
-      ) : null}
-      {notice ? (
-        <p className="banner banner-success" role="status">
-          {notice}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="banner banner-error" role="alert">
-          {error}
-        </p>
-      ) : null}
       {fresh ? (
         <section className="panel" aria-labelledby="fresh-invite-heading">
           <div className="section-heading">
@@ -242,8 +243,7 @@ export function InvitesPage() {
           </div>
         </section>
       ) : null}
-      {staff ? <AddToSide teams={teams} suggestedEmail={suggestedEmail} /> : null}
-      {staff ? (
+        </div>
         <section className="panel" aria-labelledby="pending-heading">
           <div className="section-heading">
             <p className="kicker">Waiting</p>
@@ -252,7 +252,7 @@ export function InvitesPage() {
           {rows === null ? <p className="empty-copy">Loading invites…</p> : null}
           {rows && rows.length === 0 ? <p className="empty-copy">No pending invites.</p> : null}
           {rows && rows.length > 0 ? (
-            <ul className="card-list">
+            <ul className="card-list tiles">
               {rows.map((invite) => (
                 <li key={invite.id} className="info-card">
                   <p className="team-name">{invite.email}</p>
@@ -296,7 +296,9 @@ export function InvitesPage() {
             </ul>
           ) : null}
         </section>
+        </div>
       ) : null}
+      {staff ? <AddToSide teams={teams} suggestedEmail={suggestedEmail} /> : null}
     </div>
   )
 }

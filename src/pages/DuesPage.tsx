@@ -180,7 +180,7 @@ export function DuesPage() {
   const expenseTotal = (desk?.expenses ?? []).reduce((sum, row) => sum + (row.archived_at ? 0 : row.amount), 0)
 
   return (
-    <div className="page">
+    <div className="page dues-desk">
       <header className="page-intro">
         <p className="kicker">Club ledger</p>
         <h1>Dues</h1>
@@ -593,7 +593,7 @@ function MyDues({
         <p className="empty-copy">No in-app charges. Club costs belong in the Splitwise group.</p>
       ) : null}
       {rows.length > 0 ? (
-        <ul className="card-list">
+        <ul className="card-list tiles">
           {rows.map((row) => {
             const tally = tallyPayments(payments, row.id)
             const unclaimed = amountUnclaimed(row.amount, tally.confirmed, tally.pending)
@@ -686,7 +686,7 @@ function ExpenseList({
     )
   }
   return (
-    <ul className="card-list">
+    <ul className="card-list tiles">
       {rows.map((row) => (
         <li key={row.id} className="info-card">
           <div className="tag-row">
@@ -778,7 +778,7 @@ function Balances({
         </div>
         {claims.length === 0 ? <p className="empty-copy">No one is waiting on a payment claim.</p> : null}
         {claims.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {claims.map((payment) => {
               const assessment = assessments.find((row) => row.id === payment.assessment_id)
               const member = roster.find((row) => row.id === (assessment?.member_id ?? payment.payer_user_id ?? ''))
@@ -825,7 +825,7 @@ function Balances({
           These rows are the scratch ledger. Mark paid here does not update Splitwise.
         </p>
         {memberIds.length === 0 ? <p className="empty-copy">Nothing outstanding on the in-app ledger.</p> : null}
-        <div className="card-list">
+        <div className="card-list tiles">
         {memberIds.map((memberId) => {
           const member = roster.find((row) => row.id === memberId)
           const rows = byMember.get(memberId) ?? []

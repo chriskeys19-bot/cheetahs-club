@@ -28,7 +28,7 @@ export function FeedbackPage() {
   }
 
   return (
-    <div className="page narrow">
+    <div className="page narrow feedback-page">
       <header className="page-intro">
         <p className="kicker">App</p>
         <h1>Feedback</h1>

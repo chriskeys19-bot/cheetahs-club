@@ -84,7 +84,7 @@ export function HomePage() {
       : 'Checking your club role…'
 
   return (
-    <div className="page">
+    <div className="page home-page">
       <header className="page-intro">
         <p className="kicker">Clubhouse</p>
         <h1>Welcome, {name}</h1>
@@ -95,8 +95,30 @@ export function HomePage() {
           </p>
         ) : null}
       </header>
+      <div className="home-main">
+      {week ? (
+        <ThisWeek
+          events={scheduleError ? [] : thisWeek}
+          teams={teams}
+          loading={!boardReady}
+          error={scheduleError}
+          start={week.start}
+          end={week.end}
+          asOf={asOf}
+        />
+      ) : (
+        <section className="panel week-panel" aria-labelledby="week-heading">
+          <div className="section-heading">
+            <p className="kicker">This week</p>
+            <h2 id="week-heading">What&apos;s happening this week</h2>
+          </div>
+          <p className="empty-copy">Loading this week…</p>
+        </section>
+      )}
+      </div>
+      <aside className="home-aside">
       {dues ? (
-        <section className="panel" aria-labelledby="home-dues-heading">
+        <section className="panel home-dues" aria-labelledby="home-dues-heading">
           <div className="section-heading">
             <p className="kicker">Dues</p>
             <h2 id="home-dues-heading">Splitwise</h2>
@@ -135,32 +157,13 @@ export function HomePage() {
           </p>
         </section>
       ) : null}
-      {week ? (
-        <ThisWeek
-          events={scheduleError ? [] : thisWeek}
-          teams={teams}
-          loading={!boardReady}
-          error={scheduleError}
-          start={week.start}
-          end={week.end}
-          asOf={asOf}
-        />
-      ) : (
-        <section className="panel" aria-labelledby="week-heading">
-          <div className="section-heading">
-            <p className="kicker">This week</p>
-            <h2 id="week-heading">What&apos;s happening this week</h2>
-          </div>
-          <p className="empty-copy">Loading this week…</p>
-        </section>
-      )}
       <Link className="home-feedback" to="/feedback">
         <span>Feature request / feedback on the app</span>
         <span className="home-feedback-go" aria-hidden="true">
           Open
         </span>
       </Link>
-      <section className="panel" aria-labelledby="sides-heading">
+      <section className="panel home-sides" aria-labelledby="sides-heading">
         <div className="section-heading">
           <p className="kicker">Squads</p>
           <h2 id="sides-heading">The sides</h2>
@@ -181,7 +184,7 @@ export function HomePage() {
           ))}
         </ul>
       </section>
-      <section className="panel" aria-labelledby="board-heading">
+      <section className="panel home-notice" aria-labelledby="board-heading">
         <div className="section-heading">
           <p className="kicker">Noticeboard</p>
           <h2 id="board-heading">From the club</h2>
@@ -203,7 +206,7 @@ export function HomePage() {
         ) : null}
         {boardReady && !notice && !boardError ? <p className="empty-copy">No announcements yet.</p> : null}
         {upcoming.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {upcoming.map((fixture) => {
               const when = formatFixture(fixture.game_date, fixture.start_time, fixture.end_time)
               const side = teams.find((team) => team.id === fixture.team_id)
@@ -231,6 +234,7 @@ export function HomePage() {
           <Link to="/dues">Dues</Link>
         </p>
       </section>
+      </aside>
     </div>
   )
 }

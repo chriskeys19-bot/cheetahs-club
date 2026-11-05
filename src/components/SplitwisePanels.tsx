@@ -174,7 +174,7 @@ export function SplitwiseMine({
       {recent.length > 0 ? (
         <>
           <h3>Recent in the group</h3>
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {recent.map((expense) => {
               const share = snapshot.shares.find((item) => item.expenseId === expense.id && item.profileId === userId)
               return (
@@ -220,7 +220,7 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
         </p>
         {balances.length === 0 ? <p className="empty-copy">No Splitwise members in the latest copy.</p> : null}
         {balances.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {balances.map((row) => {
               const owes = row.balanceCents < 0 ? -row.balanceCents : 0
               return (
@@ -259,7 +259,7 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
           <p className="empty-copy">Every club profile with an email is on a Splitwise row.</p>
         ) : null}
         {unmatched.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {unmatched.map((profile) => (
               <li key={profile.profileId} className="info-card">
                 <h3>{profile.displayName}</h3>
@@ -283,7 +283,7 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
         </p>
         {snapshot.debts.length === 0 ? <p className="empty-copy">No simplified USD debts in this copy.</p> : null}
         {snapshot.debts.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {snapshot.debts.slice(0, 40).map((debt) => (
               <li key={debt.id}>
                 <p>

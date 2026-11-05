@@ -147,7 +147,7 @@ export function AssessDuesForm({
   }
 
   return (
-    <form className="composer" onSubmit={onSubmit}>
+    <form className="composer span-all" onSubmit={onSubmit}>
       <div className="section-heading">
         <p className="kicker">Assess</p>
         <h2>Charge dues</h2>
