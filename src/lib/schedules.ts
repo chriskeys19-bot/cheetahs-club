@@ -73,13 +73,14 @@ function parseEvents(value: unknown): ScheduleEvent[] {
       division: typeof row.division === 'string' ? row.division : null,
       notes: typeof row.notes === 'string' ? row.notes : null,
       created_by: typeof row.created_by === 'string' ? row.created_by : null,
+      series_id: typeof row.series_id === 'string' ? row.series_id : null,
     })
   }
   return rows
 }
 
 const columns =
-  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by'
+  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by, series_id'
 
 export async function loadSchedule(): Promise<{ rows: ScheduleEvent[]; error: string | null }> {
   if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
@@ -127,6 +128,32 @@ export async function saveFixture(input: FixtureInput): Promise<string | null> {
   const { error } = input.id
     ? await supabase.from('schedule_events').update(payload).eq('id', input.id)
     : await supabase.from('schedule_events').insert(payload)
+  return error ? actionError(error.message) : null
+}
+
+export async function saveFixtureSeries(inputs: FixtureInput[], seriesId: string): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  if (inputs.length < 1) return 'Choose at least one date.'
+  const rows = []
+  for (const input of inputs) {
+    if (!SCHEDULE_EVENT_TYPES.includes(input.event_type)) return 'Choose an event type.'
+    rows.push({
+      team_id: input.team_id,
+      umpiring_team_id: input.event_type === 'umpiring' ? input.team_id : null,
+      event_type: input.event_type,
+      game_date: input.game_date,
+      start_time: input.start_time,
+      end_time: input.end_time,
+      match_format: input.match_format,
+      ground: input.ground.trim(),
+      address: input.address,
+      opponent: input.opponent.trim(),
+      division: input.event_type === 'umpiring' ? input.division : null,
+      notes: input.notes,
+      series_id: seriesId,
+    })
+  }
+  const { error } = await supabase.from('schedule_events').insert(rows)
   return error ? actionError(error.message) : null
 }
 

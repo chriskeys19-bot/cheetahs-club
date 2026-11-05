@@ -1,6 +1,8 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
-import { saveActivity } from '../lib/activities.ts'
+import { RecurrenceFields } from './RecurrenceFields.tsx'
+import { saveActivity, saveActivitySeries } from '../lib/activities.ts'
 import { pacificWallToIso } from '../lib/format.ts'
+import { addCivilDays, civilDayOffset, expandCadence, type Cadence } from '../lib/recurrence.ts'
 import type { Activity, Team } from '../lib/types.ts'
 
 function wallParts(iso: string | null): { date: string; time: string } {
@@ -48,6 +50,11 @@ export function ActivityForm({
   const [endTime, setEndTime] = useState(end.time)
   const [location, setLocation] = useState(initial?.location ?? '')
   const [teamId, setTeamId] = useState(initial?.team_id ?? '')
+  const [recurring, setRecurring] = useState(false)
+  const [cadence, setCadence] = useState<Cadence>('weekly')
+  const [recurMode, setRecurMode] = useState<'until' | 'count'>('count')
+  const [recurUntil, setRecurUntil] = useState('')
+  const [recurCount, setRecurCount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -85,18 +92,76 @@ export function ActivityForm({
       setError('Shorten the description or location.')
       return
     }
+    const descriptionValue = nextDescription.length > 0 ? nextDescription : null
+    const locationValue = nextLocation.length > 0 ? nextLocation : null
+    const teamValue = teamId || null
+    let seriesDates: string[] | null = null
+    if (!initial && recurring) {
+      if (recurMode === 'count' && !/^\d+$/.test(recurCount)) {
+        setError('Enter a whole number of occurrences from 1 to 52.')
+        return
+      }
+      const expanded = expandCadence(
+        date,
+        cadence,
+        recurMode === 'count' ? { kind: 'count', count: Number(recurCount) } : { kind: 'until', until: recurUntil },
+      )
+      if ('error' in expanded) {
+        setError(expanded.error)
+        return
+      }
+      seriesDates = expanded.dates
+    }
+    const dayOffset = hasEndDate ? civilDayOffset(date, endDate) : null
+    if (hasEndDate && dayOffset === null) {
+      setError('The end date could not be read.')
+      return
+    }
+    const seriesRows: Array<{
+      title: string
+      description: string | null
+      starts_at: string
+      ends_at: string | null
+      location: string | null
+      team_id: string | null
+    }> = []
+    if (seriesDates) {
+      for (const day of seriesDates) {
+        const seriesStart = pacificWallToIso(day, time)
+        const seriesEndDay = dayOffset === null ? null : addCivilDays(day, dayOffset)
+        const seriesEnd = seriesEndDay && hasEndTime ? pacificWallToIso(seriesEndDay, endTime) : null
+        if (!seriesStart || (hasEndDate && !seriesEnd)) {
+          setError('One of the repeated dates could not be saved.')
+          return
+        }
+        if (seriesEnd && seriesEnd < seriesStart) {
+          setError('The end has to be after the start on every date.')
+          return
+        }
+        seriesRows.push({
+          title: nextTitle,
+          description: descriptionValue,
+          starts_at: seriesStart,
+          ends_at: seriesEnd,
+          location: locationValue,
+          team_id: teamValue,
+        })
+      }
+    }
     sending.current = true
     setBusy(true)
     setError(null)
-    const message = await saveActivity({
-      id: initial?.id,
-      title: nextTitle,
-      description: nextDescription.length > 0 ? nextDescription : null,
-      starts_at: startsAt,
-      ends_at: endsAt,
-      location: nextLocation.length > 0 ? nextLocation : null,
-      team_id: teamId || null,
-    })
+    const message = seriesDates
+      ? await saveActivitySeries(seriesRows, crypto.randomUUID())
+      : await saveActivity({
+          id: initial?.id,
+          title: nextTitle,
+          description: descriptionValue,
+          starts_at: startsAt,
+          ends_at: endsAt,
+          location: locationValue,
+          team_id: teamValue,
+        })
     sending.current = false
     setBusy(false)
     if (message) {
@@ -175,6 +240,23 @@ export function ActivityForm({
           />
         </div>
       </div>
+      {!initial ? (
+        <RecurrenceFields
+          idPrefix={titleId}
+          noun="activity"
+          enabled={recurring}
+          cadence={cadence}
+          mode={recurMode}
+          until={recurUntil}
+          count={recurCount}
+          anchorDate={date}
+          onEnabled={setRecurring}
+          onCadence={setCadence}
+          onMode={setRecurMode}
+          onUntil={setRecurUntil}
+          onCount={setRecurCount}
+        />
+      ) : null}
       <label htmlFor={`${titleId}-where`}>Location</label>
       <input
         id={`${titleId}-where`}
@@ -201,7 +283,7 @@ export function ActivityForm({
           <span />
         )}
         <button type="submit" className="button button-gold" disabled={busy}>
-          {busy ? 'Saving…' : initial ? 'Save changes' : 'Add to the feed'}
+          {busy ? 'Saving…' : initial ? 'Save changes' : recurring ? 'Add activities' : 'Add to the feed'}
         </button>
       </div>
       {error ? (

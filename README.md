@@ -122,6 +122,8 @@ The home page section **What's happening this week** lists events whose `game_da
 
 Wednesday Cheetahs practice is seeded from the next Wednesday after 2026-11-05 (2026-11-11) through 2027-03-31, 8:30–10:00 PM Pacific, at US Cricket Store, 121 Ranch Dr, Milpitas, CA 95035. Those rows are club-wide (`team_id` null, `event_type` `practice`).
 
+On create, admins and captains can mark a schedule event or an activity as recurring: Daily, Weekly, Biweekly, or Monthly, in America/Los_Angeles civil dates. They choose an inclusive end date or a number of occurrences. The app writes one row per date, up to 52. A longer range is rejected and nothing is saved. Rows from one save share `series_id`. Editing or deleting one row does not change the others.
+
 `public.invites` holds player join links. Admins and captains can insert, read, and revoke pending rows (`private.is_staff()`). Players cannot read the table, so tokens are not listed to them. Accepting a link is `accept-invite` (service role). `preview-invite` checks a token before the form is shown. Both functions authenticate with the token itself (`verify_jwt` is off; see `supabase/config.toml`). Deploy them with the Supabase CLI if they are not already on the project:
 
 ```bash

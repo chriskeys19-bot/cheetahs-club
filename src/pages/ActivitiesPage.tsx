@@ -86,7 +86,7 @@ export function ActivitiesPage() {
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins add activities. Every member can read the feed.
+        Captains and admins add activities. Recurring adds one row per date. Every member can read the feed.
       </RoleNote>
       {staff ? (
         <ActivityForm
@@ -179,6 +179,7 @@ function ActivityCard({
     <li className="info-card">
       <div className="tag-row">
         <span className="tag tag-navy">{teamLabel(teams, row.team_id)}</span>
+        {row.series_id ? <span className="tag">Series</span> : null}
         <span className="fine-print">{formatPacific(row.starts_at)}</span>
       </div>
       <h3>{row.title}</h3>

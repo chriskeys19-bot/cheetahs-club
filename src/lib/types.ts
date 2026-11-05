@@ -102,6 +102,7 @@ export type Activity = {
   team_id: string | null
   created_by: string | null
   created_at: string
+  series_id: string | null
 }
 
 export const SCHEDULE_EVENT_TYPES = ['league_game', 'umpiring', 'practice', 'other'] as const
@@ -125,6 +126,7 @@ export type ScheduleEvent = {
   division: string | null
   notes: string | null
   created_by: string | null
+  series_id: string | null
 }
 
 export type PollStatus = 'open' | 'closed'
