@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
-import { FeedbackComposer } from '../components/FeedbackComposer.tsx'
-import { FeedbackList } from '../components/FeedbackList.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
-import { loadFeedback } from '../lib/feedback.ts'
 import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
 import { eventsInPacificWeek, eventTitle, loadSchedule } from '../lib/schedules.ts'
 import { loadTeams } from '../lib/teams.ts'
@@ -14,7 +11,6 @@ import {
   displayName,
   roleLabel,
   type Announcement,
-  type FeedbackRow,
   type ScheduleEvent,
   type Team,
 } from '../lib/types.ts'
@@ -30,9 +26,6 @@ export function HomePage() {
   const [scheduleError, setScheduleError] = useState<string | null>(null)
   const [asOf, setAsOf] = useState<number | null>(null)
   const [week, setWeek] = useState<{ start: string; end: string } | null>(null)
-  const [rows, setRows] = useState<FeedbackRow[]>([])
-  const [listError, setListError] = useState<string | null>(null)
-  const [listToken, setListToken] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -63,18 +56,6 @@ export function HomePage() {
     }
   }, [])
 
-  useEffect(() => {
-    let cancelled = false
-    loadFeedback(3).then(({ rows: next, error }) => {
-      if (cancelled) return
-      setRows(next)
-      setListError(error)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [listToken])
-
   const thisWeek = week ? eventsInPacificWeek(schedule, week.start, week.end) : []
   const upcoming = schedule
     .filter((event) => asOf === null || new Date(event.starts_at).getTime() >= asOf)
@@ -83,7 +64,7 @@ export function HomePage() {
   const roleLine = profile
     ? `You are signed in as ${roleLabel(profile.role).toLowerCase()}.`
     : profileError
-      ? 'Your club role could not be loaded. You can still send a suggestion.'
+      ? 'Your club role could not be loaded.'
       : 'Checking your club role…'
 
   return (
@@ -117,30 +98,33 @@ export function HomePage() {
           <p className="empty-copy">Loading this week…</p>
         </section>
       )}
-      <div className="home-grid">
-        <FeedbackComposer onSubmitted={() => setListToken((value) => value + 1)} />
-        <section className="panel" aria-labelledby="sides-heading">
-          <div className="section-heading">
-            <p className="kicker">Squads</p>
-            <h2 id="sides-heading">The sides</h2>
-          </div>
-          {teamError ? (
-            <p className="banner banner-error" role="alert">
-              {teamError}
-            </p>
-          ) : null}
-          <ul className="team-grid">
-            {teams.map((team) => (
-              <li key={team.id}>
-                <Link className="team-card" to={`/schedules?side=${team.slug}`}>
-                  <p className="team-slug">{team.slug}</p>
-                  <p className="team-name">{team.name}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+      <Link className="home-feedback" to="/feedback">
+        <span>Feature request / feedback on the app</span>
+        <span className="home-feedback-go" aria-hidden="true">
+          Open
+        </span>
+      </Link>
+      <section className="panel" aria-labelledby="sides-heading">
+        <div className="section-heading">
+          <p className="kicker">Squads</p>
+          <h2 id="sides-heading">The sides</h2>
+        </div>
+        {teamError ? (
+          <p className="banner banner-error" role="alert">
+            {teamError}
+          </p>
+        ) : null}
+        <ul className="team-grid">
+          {teams.map((team) => (
+            <li key={team.id}>
+              <Link className="team-card" to={`/schedules?side=${team.slug}`}>
+                <p className="team-slug">{team.slug}</p>
+                <p className="team-name">{team.name}</p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
       <section className="panel" aria-labelledby="board-heading">
         <div className="section-heading">
           <p className="kicker">Noticeboard</p>
@@ -187,22 +171,6 @@ export function HomePage() {
           <Link to="/schedules">Schedules</Link>
           {' · '}
           <Link to="/polls">Polls</Link>
-        </p>
-      </section>
-      <section className="panel recent" aria-labelledby="recent-heading">
-        <div className="section-heading">
-          <p className="kicker">Yours</p>
-          <h2 id="recent-heading">Latest suggestions</h2>
-        </div>
-        {listError ? (
-          <p className="banner banner-error" role="alert">
-            {listError}
-          </p>
-        ) : (
-          <FeedbackList rows={rows} empty="Nothing in the box yet." showSubmitter={false} />
-        )}
-        <p className="fine-print">
-          <Link to="/feedback">Open the full suggestion box</Link>
         </p>
       </section>
     </div>

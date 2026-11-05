@@ -30,8 +30,8 @@ export function AdminPage() {
         <p className="kicker">Club office</p>
         <h1>Admin</h1>
         <p className="lede">
-          Announcements, activities, schedules, and polls live on their own boards. This desk still
-          holds every suggestion for admins.
+          Announcements, activities, schedules, and polls live on their own boards. This desk holds
+          app feedback for admins.
         </p>
       </header>
       <section className="panel">
@@ -44,11 +44,11 @@ export function AdminPage() {
         {profileReady && !isAdmin ? (
           <div>
             <p className="lede">
-              Captains and players send notes from Feedback. Reading every suggestion is reserved
-              for admins.
+              Captains and players send feature requests from Feedback. Reading every note is
+              reserved for admins.
             </p>
             <p className="fine-print">
-              <Link to="/feedback">Go to the suggestion box</Link>
+              <Link to="/feedback">Send feedback</Link>
             </p>
           </div>
         ) : null}
@@ -56,17 +56,17 @@ export function AdminPage() {
           <div>
             <div className="section-heading">
               <p className="kicker">Inbox</p>
-              <h2>All suggestions</h2>
+              <h2>All feedback</h2>
             </div>
-            <p className="lede">You can read every note the club has stored.</p>
-            {rows === null && !error ? <p className="empty-copy">Loading suggestions…</p> : null}
+            <p className="lede">Every note stored about the app.</p>
+            {rows === null && !error ? <p className="empty-copy">Loading feedback…</p> : null}
             {error ? (
               <p className="banner banner-error" role="alert">
                 {error}
               </p>
             ) : null}
             {rows && !error ? (
-              <FeedbackList rows={rows} empty="No suggestions yet." showSubmitter />
+              <FeedbackList rows={rows} empty="No feedback yet." showSubmitter />
             ) : null}
           </div>
         ) : null}

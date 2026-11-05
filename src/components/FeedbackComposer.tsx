@@ -1,15 +1,27 @@
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
-import { submitFeedback } from '../lib/feedback.ts'
+import {
+  FEEDBACK_CATEGORIES,
+  MAX_FEEDBACK_TEXT,
+  feedbackLengthMessage,
+  submitFeedback,
+  type FeedbackCategory,
+} from '../lib/feedback.ts'
 import { displayName } from '../lib/types.ts'
 
-const MAX_BODY = 2000
+const SAVED: Record<FeedbackCategory, string> = {
+  feature: 'Feature request saved.',
+  bug: 'Bug report saved.',
+  other: 'Feedback saved.',
+}
 
 export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
   const { session, profile } = useAuth()
   const bodyId = useId()
+  const categoryName = useId()
   const statusRef = useRef<HTMLDivElement>(null)
   const sending = useRef(false)
+  const [category, setCategory] = useState<FeedbackCategory>('feature')
   const [body, setBody] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmation, setConfirmation] = useState<string | null>(null)
@@ -19,14 +31,14 @@ export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
   const user = session.user
 
   const trimmed = body.trim()
-  const remaining = MAX_BODY - body.length
+  const remaining = MAX_FEEDBACK_TEXT - body.length
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (sending.current) return
-    if (trimmed.length < 1 || trimmed.length > MAX_BODY) {
+    if (trimmed.length < 1 || trimmed.length > MAX_FEEDBACK_TEXT) {
       setConfirmation(null)
-      setError('Write a suggestion between 1 and 2000 characters.')
+      setError(feedbackLengthMessage())
       return
     }
 
@@ -39,6 +51,7 @@ export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
       name: displayName(profile, user.email),
       email: user.email ?? null,
       role: profile?.role ?? 'player',
+      category,
       body: trimmed,
     })
 
@@ -52,7 +65,7 @@ export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
     }
 
     setBody('')
-    setConfirmation('The club has your suggestion.')
+    setConfirmation(SAVED[category])
     onSubmitted()
     queueMicrotask(() => statusRef.current?.focus())
   }
@@ -65,34 +78,49 @@ export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
   }
 
   return (
-    <form className="composer" onSubmit={onSubmit}>
-      <div className="section-heading">
-        <p className="kicker">Suggestion box</p>
-        <h2>Tell the club</h2>
-      </div>
-      <p className="lede">
-        Players, captains, and admins use the same box. Your name, email, and role are stored with
-        the note.
-      </p>
-      <label htmlFor={bodyId}>Suggestion</label>
+    <form className="composer" aria-label="Feature request or feedback" onSubmit={onSubmit}>
+      <fieldset className="category-set">
+        <legend>Category</legend>
+        <div className="category-row">
+          {FEEDBACK_CATEGORIES.map((item) => (
+            <label key={item.id} className="category-chip">
+              <input
+                type="radio"
+                name={categoryName}
+                value={item.id}
+                checked={category === item.id}
+                onChange={() => {
+                  setCategory(item.id)
+                  if (confirmation) setConfirmation(null)
+                }}
+              />
+              {item.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label htmlFor={bodyId}>Request</label>
       <textarea
         id={bodyId}
-        name="suggestion"
+        name="feedback"
         value={body}
         onChange={(event) => {
           setBody(event.target.value)
           if (confirmation) setConfirmation(null)
         }}
         onKeyDown={onKeyDown}
-        maxLength={MAX_BODY}
-        rows={6}
+        maxLength={MAX_FEEDBACK_TEXT}
+        rows={4}
         required
-        placeholder="Nets, fixtures, kit, or anything the club should hear."
+        placeholder="A feature you want, or something in the app that should change."
       />
+      <p className="fine-print">Your name and role are saved with it.</p>
       <div className="composer-row">
-        <p className={remaining < 0 ? 'count count-over' : 'count'}>{body.length} / {MAX_BODY}</p>
+        <p className={remaining < 0 ? 'count count-over' : 'count'}>
+          {body.length} / {MAX_FEEDBACK_TEXT}
+        </p>
         <button type="submit" className="button button-gold" disabled={busy || trimmed.length < 1}>
-          {busy ? 'Sending…' : 'Send to the club'}
+          {busy ? 'Sending…' : 'Send feedback'}
         </button>
       </div>
       {error ? (

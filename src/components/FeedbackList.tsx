@@ -1,4 +1,5 @@
 import { formatWhen } from '../lib/format.ts'
+import { feedbackCategoryLabel, splitFeedbackBody } from '../lib/feedback.ts'
 import { isClubRole, roleLabel, type FeedbackRow } from '../lib/types.ts'
 
 function filedAs(role: string | null): string {
@@ -21,25 +22,29 @@ export function FeedbackList({
 
   return (
     <ol className="feedback-list">
-      {rows.map((row) => (
-        <li key={row.id}>
-          <article className="feedback-card">
-            <header>
-              {showSubmitter ? (
-                <p className="feedback-who">
-                  <strong>{row.submitter_name ?? 'Member'}</strong>
-                  {row.submitter_email ? <span>{row.submitter_email}</span> : null}
+      {rows.map((row) => {
+        const parsed = splitFeedbackBody(row.body)
+        return (
+          <li key={row.id}>
+            <article className="feedback-item">
+              <header>
+                {showSubmitter ? (
+                  <p className="feedback-who">
+                    <strong>{row.submitter_name ?? 'Member'}</strong>
+                    {row.submitter_email ? <span>{row.submitter_email}</span> : null}
+                  </p>
+                ) : null}
+                <p className="feedback-meta">
+                  {parsed.category ? <span className="tag">{feedbackCategoryLabel(parsed.category)}</span> : null}
+                  <span>{formatWhen(row.created_at)}</span>
+                  <span>Filed as {filedAs(row.role)}</span>
                 </p>
-              ) : null}
-              <p className="feedback-meta">
-                <span>{formatWhen(row.created_at)}</span>
-                <span>Filed as {filedAs(row.role)}</span>
-              </p>
-            </header>
-            <p className="feedback-body">{row.body}</p>
-          </article>
-        </li>
-      ))}
+              </header>
+              <p className="feedback-body">{parsed.text}</p>
+            </article>
+          </li>
+        )
+      })}
     </ol>
   )
 }
