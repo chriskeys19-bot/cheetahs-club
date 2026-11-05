@@ -3,6 +3,8 @@ import { useAuth } from '../auth/useAuth.ts'
 import { AssessDuesForm } from '../components/AssessDuesForm.tsx'
 import { ExpenseForm } from '../components/ExpenseForm.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
+import { SplitwiseBalances, SplitwiseMine, SplitwiseStaffSummary } from '../components/SplitwisePanels.tsx'
+import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import {
   confirmClaim,
   loadDuesDesk,
@@ -22,6 +24,8 @@ import {
   parseDollarsToCents,
   tallyPayments,
 } from '../lib/money.ts'
+import { emptySnapshot, loadSplitwiseSnapshot, syncSplitwise, type SplitwiseSnapshot } from '../lib/splitwise.ts'
+import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
 import {
   canManageClub,
   type ClaimStatus,
@@ -29,7 +33,7 @@ import {
   type DuesPayment,
   type DueStatus,
   type Expense,
-  type RosterMember,
+  type DuesRosterMember,
   type Team,
 } from '../lib/types.ts'
 
@@ -58,8 +62,13 @@ export function DuesPage() {
   const { session, profile, profileReady, profileError } = useAuth()
   const staff = canManageClub(profile?.role)
   const userId = session?.user.id ?? null
-  const [view, setView] = useState<DuesView>('mine')
+  const [view, setView] = useState<DuesView>('balances')
   const [desk, setDesk] = useState<DuesDesk | null>(null)
+  const [snapshot, setSnapshot] = useState<SplitwiseSnapshot>(emptySnapshot)
+  const [snapshotError, setSnapshotError] = useState<string | null>(null)
+  const [snapshotReady, setSnapshotReady] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [showArchived, setShowArchived] = useState(false)
@@ -67,8 +76,11 @@ export function DuesPage() {
   const [payingId, setPayingId] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const running = useRef(false)
+  const refreshLock = useRef(false)
+  const autoTried = useRef(false)
   const activeView: DuesView = staff ? view : 'mine'
   const today = pacificDateInput()
+  const venmoUsername = resolveVenmoUsername(snapshot.meta)
 
   useEffect(() => {
     if (!profileReady || !userId) return
@@ -83,12 +95,58 @@ export function DuesPage() {
     }
   }, [profileReady, userId, staff, token])
 
+  useEffect(() => {
+    if (!profileReady || !userId) return
+    const gate = { current: false }
+    loadSplitwiseSnapshot(staff).then((result) => {
+      if (gate.current) return
+      setSnapshot(result.snapshot)
+      setSnapshotError(result.error)
+      setSnapshotReady(true)
+    })
+    return () => {
+      gate.current = true
+    }
+  }, [profileReady, userId, staff, token])
+
   function refresh() {
     setError(null)
     setEditing(null)
     setPayingId(null)
     setToken((value) => value + 1)
   }
+
+  async function refreshSplitwise(force: boolean) {
+    if (refreshLock.current) return
+    refreshLock.current = true
+    setRefreshing(true)
+    setRefreshError(null)
+    try {
+      const message = await syncSplitwise(force)
+      if (message) {
+        setRefreshError(message)
+        setToken((value) => value + 1)
+        return
+      }
+      refresh()
+    } finally {
+      refreshLock.current = false
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!staff || !snapshotReady || autoTried.current) return
+    const syncedAt = snapshot.meta?.syncedAt
+    const stale = !syncedAt || Date.now() - new Date(syncedAt).getTime() > 15 * 60 * 1000
+    if (!stale) return
+    autoTried.current = true
+    // Refresh talks to Splitwise. Defer the state update so this effect only
+    // schedules that external call.
+    queueMicrotask(() => {
+      void refreshSplitwise(false)
+    })
+  }, [staff, snapshotReady, snapshot.meta?.syncedAt])
 
   async function run(id: string, action: () => Promise<string | null>) {
     if (running.current) return
@@ -128,12 +186,12 @@ export function DuesPage() {
         <h1>Dues</h1>
         <p className="lede">
           {staff
-            ? 'Log expenses, assess dues, and confirm payments. A method note is just a reminder, such as Venmo @cheetahs. Nothing here checks out through Venmo, PayPal, or a card.'
-            : 'What you owe the club, and a way to say you have paid. A captain confirms the claim. The club does not take payment inside the app.'}
+            ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
+            : 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'}
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins log expenses and assess dues. You can see your own rows and file a payment claim.
+        Captains and admins refresh Splitwise and can see every balance. You see your own Splitwise balance, and any in-app charge that was assessed to you.
       </RoleNote>
       {profileError ? (
         <p className="banner banner-error" role="alert">
@@ -148,8 +206,8 @@ export function DuesPage() {
       {staff && desk ? (
         <section className="panel" aria-labelledby="ledger-heading">
           <div className="section-heading">
-            <p className="kicker">Rollup</p>
-            <h2 id="ledger-heading">Club totals</h2>
+            <p className="kicker">Scratch pad</p>
+            <h2 id="ledger-heading">In-app ledger</h2>
           </div>
           <ul className="stat-grid">
             <li>
@@ -166,10 +224,18 @@ export function DuesPage() {
             </li>
           </ul>
           <p className="fine-print">
-            Collected is confirmed payments. Outstanding is still open, including amounts waiting on a claim. Expenses
-            leave out archived rows.
+            These totals are the in-app scratch ledger, not Splitwise. Collected is confirmed payments. Outstanding is
+            still open, including amounts waiting on a claim. Expenses leave out archived rows.
           </p>
         </section>
+      ) : null}
+      {staff && profileReady ? (
+        <SplitwiseStaffSummary
+          snapshot={snapshot}
+          refreshing={refreshing}
+          refreshError={refreshError}
+          onRefresh={() => void refreshSplitwise(true)}
+        />
       ) : null}
       {staff ? (
         <div className="filter-bar" role="group" aria-label="Dues sections">
@@ -182,7 +248,7 @@ export function DuesPage() {
             aria-pressed={activeView === 'expenses'}
             onClick={() => setView('expenses')}
           >
-            Expenses
+            Local expenses
           </button>
           <button
             type="button"
@@ -190,7 +256,7 @@ export function DuesPage() {
             aria-pressed={activeView === 'assess'}
             onClick={() => setView('assess')}
           >
-            Assess
+            Local charges
           </button>
           <button
             type="button"
@@ -203,6 +269,9 @@ export function DuesPage() {
         </div>
       ) : null}
       {!profileReady || (desk === null && !error) ? <p className="empty-copy">Loading dues…</p> : null}
+      {profileReady && activeView === 'mine' ? (
+        <SplitwiseMine userId={userId} snapshot={snapshot} loading={!snapshotReady} error={snapshotError} />
+      ) : null}
       {desk && activeView === 'mine' ? (
         <MyDues
           rows={mine}
@@ -217,6 +286,7 @@ export function DuesPage() {
           pendingId={pendingId}
           onPayStart={setPayingId}
           onPayCancel={() => setPayingId(null)}
+          venmoUsername={venmoUsername}
           onPay={(assessmentId, amount, methodNote, notes, claimStatus) =>
             run(assessmentId, () => recordPayment({ assessmentId, amount, methodNote, notes, claimStatus }))
           }
@@ -229,6 +299,12 @@ export function DuesPage() {
             void run(payment.id, () => removePayment(payment.id))
           }}
         />
+      ) : null}
+      {desk && staff && activeView === 'expenses' ? (
+        <p className="banner banner-note">
+          Splitwise is the ledger of record. Add ground fees, balls, and other costs in the Cheetahs group, then
+          refresh. Saving an expense here does not create a Splitwise expense.
+        </p>
       ) : null}
       {desk && staff && activeView === 'expenses' ? (
         <ExpenseForm
@@ -273,6 +349,12 @@ export function DuesPage() {
         </section>
       ) : null}
       {desk && staff && activeView === 'assess' ? (
+        <p className="banner banner-note">
+          Charges saved here stay in the in-app scratch ledger. They do not bill anyone in Splitwise. Assess the club
+          in the Splitwise group instead.
+        </p>
+      ) : null}
+      {desk && staff && activeView === 'assess' ? (
         <AssessDuesForm
           key={token}
           teams={desk.teams}
@@ -282,6 +364,7 @@ export function DuesPage() {
           onSaved={refresh}
         />
       ) : null}
+      {staff && activeView === 'balances' ? <SplitwiseBalances snapshot={snapshot} /> : null}
       {desk && staff && activeView === 'balances' ? (
         <Balances
           assessments={desk.assessments}
@@ -471,6 +554,7 @@ function MyDues({
   openTotal,
   staff,
   userId,
+  venmoUsername,
   payingId,
   pendingId,
   onPayStart,
@@ -487,6 +571,7 @@ function MyDues({
   openTotal: number
   staff: boolean
   userId: string | null
+  venmoUsername: string
   payingId: string | null
   pendingId: string | null
   onPayStart: (id: string) => void
@@ -498,14 +583,14 @@ function MyDues({
   return (
     <section className="panel" aria-labelledby="mine-heading">
       <div className="section-heading">
-        <p className="kicker">Yours</p>
-        <h2 id="mine-heading">My dues</h2>
+        <p className="kicker">Scratch pad</p>
+        <h2 id="mine-heading">In-app charges</h2>
       </div>
       <p className="fine-print">
-        {openTotal > 0 ? `${formatCents(openTotal)} still open.` : 'Nothing open on your account.'}
+        In-app charges only. They do not change Splitwise. {openTotal > 0 ? `${formatCents(openTotal)} still open here.` : 'Nothing open on this scratch ledger.'} An &ldquo;I paid&rdquo; claim waits for a captain and stays in this ledger.
       </p>
       {rows.length === 0 ? (
-        <p className="empty-copy">You have no dues right now. When a captain assesses a charge, it shows up here.</p>
+        <p className="empty-copy">No in-app charges. Club costs belong in the Splitwise group.</p>
       ) : null}
       {rows.length > 0 ? (
         <ul className="card-list">
@@ -548,7 +633,12 @@ function MyDues({
                 />
                 {row.status === 'open' && unclaimed > 0 && payingId !== row.id ? (
                   <div className="card-actions">
-                    <button type="button" className="button button-gold" onClick={() => onPayStart(row.id)}>
+                    <VenmoPayLink
+                      username={venmoUsername}
+                      amountCents={unclaimed}
+                      note={duesVenmoNote(row.period_label)}
+                    />
+                    <button type="button" className="button button-quiet" onClick={() => onPayStart(row.id)}>
                       {staff ? 'Record payment' : 'I paid'}
                     </button>
                   </div>
@@ -591,7 +681,7 @@ function ExpenseList({
   if (rows.length === 0) {
     return (
       <p className="empty-copy">
-        {showArchived ? 'No expenses yet.' : 'No active expenses. Log ground fees, balls, and other club costs.'}
+        {showArchived ? 'No expenses yet.' : 'No in-app expenses. Log club costs in the Splitwise group.'}
       </p>
     )
   }
@@ -647,7 +737,7 @@ function Balances({
 }: {
   assessments: DuesAssessment[]
   payments: DuesPayment[]
-  roster: RosterMember[]
+  roster: DuesRosterMember[]
   teams: Team[]
   today: string
   payingId: string | null
@@ -729,9 +819,12 @@ function Balances({
       <section className="panel" aria-labelledby="balances-heading">
         <div className="section-heading">
           <p className="kicker">Open</p>
-          <h2 id="balances-heading">Outstanding dues</h2>
+          <h2 id="balances-heading">In-app outstanding</h2>
         </div>
-        {memberIds.length === 0 ? <p className="empty-copy">Nothing outstanding.</p> : null}
+        <p className="fine-print">
+          These rows are the scratch ledger. Mark paid here does not update Splitwise.
+        </p>
+        {memberIds.length === 0 ? <p className="empty-copy">Nothing outstanding on the in-app ledger.</p> : null}
         <div className="card-list">
         {memberIds.map((memberId) => {
           const member = roster.find((row) => row.id === memberId)
@@ -781,7 +874,7 @@ function Balances({
                       />
                       <div className="card-actions">
                         {unclaimed > 0 && payingId !== row.id ? (
-                          <button type="button" className="button button-gold" onClick={() => onPayStart(row.id)}>
+                          <button type="button" className="button button-quiet" onClick={() => onPayStart(row.id)}>
                             Mark paid
                           </button>
                         ) : null}

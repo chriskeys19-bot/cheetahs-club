@@ -10,7 +10,7 @@ import {
   type DuesPayment,
   type DueStatus,
   type Expense,
-  type RosterMember,
+  type DuesRosterMember,
   type Team,
   type TeamMembership,
 } from './types.ts'
@@ -20,7 +20,7 @@ export type DuesDesk = {
   assessments: DuesAssessment[]
   payments: DuesPayment[]
   expenses: Expense[]
-  roster: RosterMember[]
+  roster: DuesRosterMember[]
   memberships: TeamMembership[]
 }
 
@@ -182,9 +182,9 @@ function parsePayments(value: unknown): DuesPayment[] {
   return rows
 }
 
-function parseRoster(value: unknown): RosterMember[] {
+function parseRoster(value: unknown): DuesRosterMember[] {
   if (!Array.isArray(value)) return []
-  const rows: RosterMember[] = []
+  const rows: DuesRosterMember[] = []
   for (const item of value) {
     if (!item || typeof item !== 'object') continue
     const row = item as Record<string, unknown>

@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { ThisWeek } from '../components/ThisWeek.tsx'
+import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
 import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
+import { formatCents } from '../lib/money.ts'
 import { eventsInPacificWeek, eventTitle, loadSchedule } from '../lib/schedules.ts'
+import { loadSplitwiseHome, type SplitwiseHome } from '../lib/splitwise.ts'
 import { loadTeams } from '../lib/teams.ts'
+import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
 import {
   canManageClub,
   displayName,
@@ -16,7 +20,8 @@ import {
 } from '../lib/types.ts'
 
 export function HomePage() {
-  const { session, profile, profileError } = useAuth()
+  const { session, profile, profileReady, profileError } = useAuth()
+  const [dues, setDues] = useState<SplitwiseHome | null>(null)
   const [teams, setTeams] = useState<Team[]>([])
   const [teamError, setTeamError] = useState<string | null>(null)
   const [notice, setNotice] = useState<Announcement | null>(null)
@@ -56,6 +61,17 @@ export function HomePage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!profileReady || !session) return
+    let cancelled = false
+    loadSplitwiseHome(session.user.id, canManageClub(profile?.role)).then((home) => {
+      if (!cancelled) setDues(home)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [profileReady, session, profile?.role])
+
   const thisWeek = week ? eventsInPacificWeek(schedule, week.start, week.end) : []
   const upcoming = schedule
     .filter((event) => asOf === null || new Date(event.starts_at).getTime() >= asOf)
@@ -79,6 +95,46 @@ export function HomePage() {
           </p>
         ) : null}
       </header>
+      {dues ? (
+        <section className="panel" aria-labelledby="home-dues-heading">
+          <div className="section-heading">
+            <p className="kicker">Dues</p>
+            <h2 id="home-dues-heading">Splitwise</h2>
+          </div>
+          {dues.netCents === null ? (
+            <p>Your sign-in email is not on the latest Splitwise list. A captain can match it and refresh.</p>
+          ) : dues.netCents < 0 ? (
+            <>
+              <p className="money-line">
+                <span>You owe {formatCents(-dues.netCents)}</span>
+              </p>
+              <p className="fine-print">
+                Pay the club on Venmo. A captain records it in Splitwise, which is the ledger. This app does not mark
+                the balance paid.
+              </p>
+              <VenmoPayLink
+                username={resolveVenmoUsername({ venmoUsername: dues.venmoUsername, syncedAt: dues.syncedAt })}
+                amountCents={-dues.netCents}
+                note={duesVenmoNote(dues.groupName ?? 'Splitwise')}
+              />
+            </>
+          ) : dues.netCents > 0 ? (
+            <p>The group owes you {formatCents(dues.netCents)}.</p>
+          ) : (
+            <p>You&apos;re settled on the Splitwise ledger.</p>
+          )}
+          {canManageClub(profile?.role) && dues.owedByMembersCents !== null ? (
+            <p className="fine-print">
+              Members owe {formatCents(dues.owedByMembersCents)}
+              {dues.owedToMembersCents !== null ? `, and are owed ${formatCents(dues.owedToMembersCents)}` : ''}. That
+              rollup is staff-only.
+            </p>
+          ) : null}
+          <p className="fine-print">
+            <Link to="/dues">Open dues</Link>
+          </p>
+        </section>
+      ) : null}
       {week ? (
         <ThisWeek
           events={scheduleError ? [] : thisWeek}

@@ -18,3 +18,11 @@ verify_jwt = false
 
 [functions.send-invite-email]
 verify_jwt = true
+
+# sync-splitwise checks a captain/admin JWT itself, and also accepts the
+# x-splitwise-cron secret for pg_cron. The platform JWT check stays off so
+# the cron call is not rejected before the handler runs. The handler rejects
+# everyone else. Splitwise secrets never go in the Vite client.
+
+[functions.sync-splitwise]
+verify_jwt = false
