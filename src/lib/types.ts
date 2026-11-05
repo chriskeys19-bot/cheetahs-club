@@ -127,6 +127,12 @@ export type ScheduleEvent = {
   notes: string | null
   created_by: string | null
   series_id: string | null
+  venue_side: 'home' | 'away' | null
+  ball_color: 'white' | 'pink' | null
+  dress_code: 'cheetahs_colors' | 'whites' | null
+  result: 'win' | 'loss' | 'draw' | 'nr' | null
+  scorecard_url: string | null
+  match_status: 'scheduled' | 'completed'
 }
 
 export type PollStatus = 'open' | 'closed'

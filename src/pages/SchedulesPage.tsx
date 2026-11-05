@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
+import { GameMeta } from '../components/GameMeta.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatFixture } from '../lib/format.ts'
 import { eventKindLabel, eventTitle, loadSchedule, removeFixture } from '../lib/schedules.ts'
@@ -235,6 +236,7 @@ export function SchedulesPage() {
                   </div>
                   <p className="fixture-date">{when.date}</p>
                   <h3>{eventTitle(row, sideName)}</h3>
+                  <GameMeta event={row} teamSlug={teamSlug(teams, row.team_id)} asOf={asOf} />
                   <p>{row.ground}</p>
                   {row.address ? (
                     <p className="fine-print">
