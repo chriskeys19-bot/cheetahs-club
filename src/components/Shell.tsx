@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
-import { displayName } from '../lib/types.ts'
+import { canManageClub, displayName } from '../lib/types.ts'
 import { RoleBadge } from './RoleBadge.tsx'
 
 export function Shell() {
@@ -55,6 +55,7 @@ export function Shell() {
         <NavLink to="/schedules">Schedules</NavLink>
         <NavLink to="/polls">Polls</NavLink>
         <NavLink to="/feedback">Feedback</NavLink>
+        {canManageClub(profile?.role) ? <NavLink to="/invites">Invites</NavLink> : null}
         <NavLink to="/admin">Admin</NavLink>
       </nav>
       {error ? (

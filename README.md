@@ -7,7 +7,7 @@ Suggestions are stored in Supabase. The browser does not call Google Sheets. See
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/admin`)
+- React Router (`/login`, `/join/:token`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -41,7 +41,9 @@ npm install
 npm run dev
 ```
 
-Accounts are email and password. The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New signups are stored as `player`.
+Accounts are email and password. There is no public sign-up on `/login`. The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`.
+
+Captains and admins invite players from **Invites**. Creating an invite stores a single-use token and shows `https://cheetahs-club.pages.dev/join/<token>` to copy. The app does not send that email yet. A later mailer (Resend or SMTP) can send the same URL; do not block the invite on club Gmail. The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`.
 
 The same two variables power announcements, activities, schedules, and polls. Do not add a service role key or a Google Sheets credential to the Vite env. Schedule rows are seeded in Postgres; the browser only reads and writes Supabase.
 
@@ -68,7 +70,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, and `/admin` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, and `/admin` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -81,3 +83,10 @@ SQL lives in `supabase/migrations` and is already applied on the club project. F
 `public.feedback` holds suggestions. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that.
 
 Phase 2 adds `announcements`, `activities`, `schedule_events`, `polls`, `poll_options`, and `poll_votes`. Signed-in members can read them. Admins and captains can change announcements, activities, fixtures, and polls. Any signed-in member can vote once on an open poll. Vote totals come from `public.poll_tallies()`, which does not return voter ids. `schedule_events` is seeded with the Winter 2026-27 league games and umpiring duties. `game_date` and `start_time` are Pacific wall-clock values. `starts_at` is the matching UTC instant.
+
+`public.invites` holds player join links. Admins and captains can insert, read, and revoke pending rows. Players cannot read the table, so tokens are not listed to them. Accepting a link is `accept-invite` (service role). `preview-invite` checks a token before the form is shown. Both functions authenticate with the token itself (`verify_jwt` is off; see `supabase/config.toml`). Deploy them with the Supabase CLI if they are not already on the project:
+
+```bash
+supabase functions deploy preview-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy accept-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+```

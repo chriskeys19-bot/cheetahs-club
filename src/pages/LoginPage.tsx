@@ -23,7 +23,9 @@ function loginMessage(message: string): string {
 export function LoginPage() {
   const { session, authReady, signIn } = useAuth()
   const location = useLocation()
-  const [email, setEmail] = useState('')
+  const state = location.state as { from?: unknown; joined?: unknown; email?: unknown } | null
+  const joined = state?.joined === true
+  const [email, setEmail] = useState(typeof state?.email === 'string' ? state.email : '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -58,6 +60,12 @@ export function LoginPage() {
       <section className="login-panel">
         <form className="login-card" onSubmit={onSubmit}>
           <h2>Sign in</h2>
+          {joined ? (
+            <div className="banner banner-success" role="status">
+              <p className="banner-title">Account ready</p>
+              <p>Your player account is ready. Sign in with the password you just chose.</p>
+            </div>
+          ) : null}
           <label htmlFor="email">Email</label>
           <input
             id="email"
@@ -87,7 +95,10 @@ export function LoginPage() {
           <button type="submit" className="button button-gold button-block" disabled={busy}>
             {busy ? 'Signing in…' : 'Enter the clubhouse'}
           </button>
-          <p className="fine-print">Use the email and password from your club account.</p>
+          <p className="fine-print">
+            Club accounts are invite-only. A captain or admin sends you a join link. There is no
+            public sign-up.
+          </p>
         </form>
       </section>
     </div>
