@@ -690,6 +690,16 @@ a.team-card {
   color: inherit;
 }
 
+a.info-card {
+  text-decoration: none;
+  color: inherit;
+}
+
+a.info-card:hover,
+a.info-card:focus-visible {
+  border-color: var(--gold);
+}
+
 .card-list,
 .choice-list {
   list-style: none;

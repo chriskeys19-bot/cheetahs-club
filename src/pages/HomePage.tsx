@@ -3,10 +3,11 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FeedbackComposer } from '../components/FeedbackComposer.tsx'
 import { FeedbackList } from '../components/FeedbackList.tsx'
+import { ThisWeek } from '../components/ThisWeek.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
 import { loadFeedback } from '../lib/feedback.ts'
-import { formatFixture } from '../lib/format.ts'
-import { loadSchedule } from '../lib/schedules.ts'
+import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
+import { eventsInPacificWeek, eventTitle, loadSchedule } from '../lib/schedules.ts'
 import { loadTeams } from '../lib/teams.ts'
 import {
   canManageClub,
@@ -23,9 +24,12 @@ export function HomePage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [teamError, setTeamError] = useState<string | null>(null)
   const [notice, setNotice] = useState<Announcement | null>(null)
-  const [fixtures, setFixtures] = useState<ScheduleEvent[]>([])
+  const [schedule, setSchedule] = useState<ScheduleEvent[]>([])
   const [boardReady, setBoardReady] = useState(false)
   const [boardError, setBoardError] = useState<string | null>(null)
+  const [scheduleError, setScheduleError] = useState<string | null>(null)
+  const [asOf, setAsOf] = useState<number | null>(null)
+  const [week, setWeek] = useState<{ start: string; end: string } | null>(null)
   const [rows, setRows] = useState<FeedbackRow[]>([])
   const [listError, setListError] = useState<string | null>(null)
   const [listToken, setListToken] = useState(0)
@@ -47,11 +51,11 @@ export function HomePage() {
     Promise.all([loadAnnouncements(), loadSchedule()]).then(([announcements, schedule]) => {
       if (cancelled) return
       setNotice(announcements.rows[0] ?? null)
-      const now = Date.now()
-      setFixtures(
-        schedule.rows.filter((event) => new Date(event.starts_at).getTime() >= now).slice(0, 3),
-      )
-      setBoardError(announcements.error ?? schedule.error)
+      setSchedule(schedule.rows)
+      setBoardError(announcements.error)
+      setScheduleError(schedule.error)
+      setWeek(pacificWeekBounds(new Date()))
+      setAsOf(Date.now())
       setBoardReady(true)
     })
     return () => {
@@ -71,6 +75,10 @@ export function HomePage() {
     }
   }, [listToken])
 
+  const thisWeek = week ? eventsInPacificWeek(schedule, week.start, week.end) : []
+  const upcoming = schedule
+    .filter((event) => asOf === null || new Date(event.starts_at).getTime() >= asOf)
+    .slice(0, 3)
   const name = displayName(profile, session?.user.email)
   const roleLine = profile
     ? `You are signed in as ${roleLabel(profile.role).toLowerCase()}.`
@@ -90,6 +98,25 @@ export function HomePage() {
           </p>
         ) : null}
       </header>
+      {week ? (
+        <ThisWeek
+          events={scheduleError ? [] : thisWeek}
+          teams={teams}
+          loading={!boardReady}
+          error={scheduleError}
+          start={week.start}
+          end={week.end}
+          asOf={asOf}
+        />
+      ) : (
+        <section className="panel" aria-labelledby="week-heading">
+          <div className="section-heading">
+            <p className="kicker">This week</p>
+            <h2 id="week-heading">What&apos;s happening this week</h2>
+          </div>
+          <p className="empty-copy">Loading this week…</p>
+        </section>
+      )}
       <div className="home-grid">
         <FeedbackComposer onSubmitted={() => setListToken((value) => value + 1)} />
         <section className="panel" aria-labelledby="sides-heading">
@@ -135,20 +162,17 @@ export function HomePage() {
           </article>
         ) : null}
         {boardReady && !notice && !boardError ? <p className="empty-copy">No announcements yet.</p> : null}
-        {fixtures.length > 0 ? (
+        {upcoming.length > 0 ? (
           <ul className="card-list">
-            {fixtures.map((fixture) => {
-              const when = formatFixture(fixture.game_date, fixture.start_time)
+            {upcoming.map((fixture) => {
+              const when = formatFixture(fixture.game_date, fixture.start_time, fixture.end_time)
               const side = teams.find((team) => team.id === fixture.team_id)
               return (
                 <li key={fixture.id} className="info-card">
                   <p className="fixture-date">
                     {when.date} · {when.time}
                   </p>
-                  <h3>
-                    {side ? side.name.replace('Cheetahs ', '') : 'Club'} ·{' '}
-                    {fixture.event_type === 'umpiring' ? fixture.opponent : `vs ${fixture.opponent}`}
-                  </h3>
+                  <h3>{eventTitle(fixture, side?.name ?? null)}</h3>
                   <p className="fine-print">{fixture.ground}</p>
                 </li>
               )

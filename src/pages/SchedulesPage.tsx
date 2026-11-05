@@ -4,15 +4,22 @@ import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatFixture } from '../lib/format.ts'
-import { loadSchedule, removeFixture } from '../lib/schedules.ts'
+import { eventKindLabel, eventTitle, loadSchedule, removeFixture } from '../lib/schedules.ts'
 import { loadMyTeamIds, loadTeams } from '../lib/teams.ts'
 import { canManageClub, type ScheduleEvent, type Team } from '../lib/types.ts'
 
-const SIDES = ['all', 'alpha', 'beta', 'gamma', 'umpiring', 'mine'] as const
+const SIDES = ['all', 'alpha', 'beta', 'gamma', 'umpiring', 'practice', 'mine'] as const
 type SideFilter = (typeof SIDES)[number]
 
 function parseSide(value: string | null): SideFilter {
-  if (value === 'alpha' || value === 'beta' || value === 'gamma' || value === 'umpiring' || value === 'mine') {
+  if (
+    value === 'alpha' ||
+    value === 'beta' ||
+    value === 'gamma' ||
+    value === 'umpiring' ||
+    value === 'practice' ||
+    value === 'mine'
+  ) {
     return value
   }
   return 'all'
@@ -87,6 +94,7 @@ export function SchedulesPage() {
     return events.filter((event) => {
       if (side === 'all') return true
       if (side === 'umpiring') return event.event_type === 'umpiring'
+      if (side === 'practice') return event.event_type === 'practice'
       if (side === 'mine') return event.team_id !== null && myTeamIds.includes(event.team_id)
       return teamSlug(teams, event.team_id) === side
     })
@@ -108,7 +116,8 @@ export function SchedulesPage() {
   }
 
   async function onRemove(row: ScheduleEvent) {
-    if (!window.confirm(`Remove ${row.opponent} on ${row.game_date}?`)) return
+    const label = eventTitle(row, teamName(teams, row.team_id))
+    if (!window.confirm(`Remove ${label} on ${row.game_date}?`)) return
     setPendingId(row.id)
     const message = await removeFixture(row.id)
     setPendingId(null)
@@ -126,6 +135,7 @@ export function SchedulesPage() {
     beta: (rows ?? []).filter((event) => teamSlug(teams, event.team_id) === 'beta').length,
     gamma: (rows ?? []).filter((event) => teamSlug(teams, event.team_id) === 'gamma').length,
     umpiring: (rows ?? []).filter((event) => event.event_type === 'umpiring').length,
+    practice: (rows ?? []).filter((event) => event.event_type === 'practice').length,
     mine: (rows ?? []).filter((event) => event.team_id !== null && myTeamIds.includes(event.team_id)).length,
   }
 
@@ -135,12 +145,13 @@ export function SchedulesPage() {
         <p className="kicker">Winter 2026-27</p>
         <h1>Schedules</h1>
         <p className="lede">
-          League games and umpiring duties for Alpha, Beta, and Gamma. Times are Pacific
-          (America/Los_Angeles). Availability stays on the club sheet.
+          League games, umpiring duties, and Cheetahs practice. Times are Pacific
+          (America/Los_Angeles). The club week on the home page is Monday through Sunday.
+          Availability stays on the club sheet.
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins can add or remove fixtures. Every member can read the list.
+        Captains and admins can add, edit, or remove events. Players can read the list.
       </RoleNote>
       {staff && (composing || editing) ? (
         <FixtureForm
@@ -156,7 +167,7 @@ export function SchedulesPage() {
       ) : null}
       {staff && !composing && !editing ? (
         <button type="button" className="button button-gold" onClick={() => setComposing(true)}>
-          Add a fixture
+          Add an event
         </button>
       ) : null}
       <div className="filter-bar" role="group" aria-label="Schedule filter">
@@ -170,16 +181,24 @@ export function SchedulesPage() {
           pressed={side === 'umpiring'}
           onClick={() => selectSide('umpiring')}
         />
+        <FilterChip
+          label="Practice"
+          count={counts.practice}
+          pressed={side === 'practice'}
+          onClick={() => selectSide('practice')}
+        />
         {myTeamIds.length > 0 ? (
           <FilterChip label="My side" count={counts.mine} pressed={side === 'mine'} onClick={() => selectSide('mine')} />
         ) : null}
       </div>
       <section className="panel" aria-labelledby="fixtures-heading">
         <div className="section-heading">
-          <p className="kicker">Fixtures</p>
-          <h2 id="fixtures-heading">{side === 'all' ? 'Full winter list' : 'Filtered list'}</h2>
+          <p className="kicker">Events</p>
+          <h2 id="fixtures-heading">
+            {side === 'all' ? 'Full winter list' : side === 'practice' ? 'Wednesday practice' : 'Filtered list'}
+          </h2>
         </div>
-        {rows === null && !error ? <p className="empty-copy">Loading fixtures…</p> : null}
+        {rows === null && !error ? <p className="empty-copy">Loading the schedule…</p> : null}
         {error ? (
           <p className="banner banner-error" role="alert">
             {error}
@@ -187,13 +206,17 @@ export function SchedulesPage() {
         ) : null}
         {rows && visible.length === 0 && !error ? (
           <p className="empty-copy">
-            {side === 'mine' ? 'You are not on a side yet, or that side has no fixtures.' : 'No fixtures in this view.'}
+            {side === 'mine'
+              ? 'You are not on a side yet, or that side has no events.'
+              : side === 'practice'
+                ? 'No practice is on the schedule.'
+                : 'No events in this view.'}
           </p>
         ) : null}
         {visible.length > 0 ? (
           <ul className="card-list">
             {visible.map((row) => {
-              const when = formatFixture(row.game_date, row.start_time)
+              const when = formatFixture(row.game_date, row.start_time, row.end_time)
               const played = asOf !== null && new Date(row.starts_at).getTime() < asOf
               const sideName = teamName(teams, row.team_id)
               const mapHref = row.address
@@ -203,14 +226,14 @@ export function SchedulesPage() {
                 <li key={row.id} className={played ? 'info-card is-past' : 'info-card'}>
                   <div className="tag-row">
                     <span className="tag tag-gold">{when.time}</span>
-                    {row.event_type === 'umpiring' ? <span className="tag tag-navy">Umpiring</span> : <span className="tag tag-navy">League</span>}
-                    {sideName ? <span className="tag">{sideName.replace('Cheetahs ', '')}</span> : null}
+                    <span className="tag tag-navy">{eventKindLabel(row.event_type)}</span>
+                    <span className="tag">{sideName ? sideName.replace(/^Cheetahs /, '') : 'Club-wide'}</span>
                     {row.match_format ? <span className="tag">{row.match_format}</span> : null}
                     {row.division ? <span className="tag">{row.division}</span> : null}
                     {played ? <span className="tag">Played</span> : null}
                   </div>
                   <p className="fixture-date">{when.date}</p>
-                  <h3>{row.event_type === 'umpiring' ? row.opponent : `vs ${row.opponent}`}</h3>
+                  <h3>{eventTitle(row, sideName)}</h3>
                   <p>{row.ground}</p>
                   {row.address ? (
                     <p className="fine-print">
