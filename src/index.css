@@ -379,6 +379,12 @@ a.button {
   border: 1px solid var(--navy);
 }
 
+.banner-note {
+  background: var(--cream);
+  color: var(--navy);
+  border: 1px solid var(--gold);
+}
+
 .banner-success {
   background: var(--navy);
   color: var(--cream);

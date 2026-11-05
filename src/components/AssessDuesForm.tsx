@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { assessDues, memberLabel } from '../lib/dues.ts'
 import { centsToDollarInput, formatCents, parseDollarsToCents, splitCents } from '../lib/money.ts'
-import type { Expense, RosterMember, Team, TeamMembership } from '../lib/types.ts'
+import type { DuesRosterMember, Expense, Team, TeamMembership } from '../lib/types.ts'
 
 export function AssessDuesForm({
   teams,
@@ -11,7 +11,7 @@ export function AssessDuesForm({
   onSaved,
 }: {
   teams: Team[]
-  roster: RosterMember[]
+  roster: DuesRosterMember[]
   memberships: TeamMembership[]
   expenses: Expense[]
   onSaved: () => void

@@ -204,7 +204,7 @@ export type DuesPayment = {
   created_at: string
 }
 
-export type RosterMember = {
+export type DuesRosterMember = {
   id: string
   full_name: string | null
   role: ClubRole

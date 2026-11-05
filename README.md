@@ -73,6 +73,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
+- `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Fallback until the first Splitwise refresh. Placeholder when unset: `cheetahs`. Do not put Splitwise keys here.
 
 `public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
 
@@ -84,7 +85,32 @@ Set these environment variables on the Pages project **before** the build. Vite 
 
 SQL lives in `supabase/migrations`. Files through the invite workflow are already applied on the club project. Filename order matches the remote migration history. On a brand-new database, apply that directory with the Supabase CLI (`supabase db push`). Do not re-apply a file that is already in the remote history.
 
-Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Apply that file to project `lutcbvzunjcosncvdyke` before using the Dues page (`supabase db push`, or paste the file into the Supabase SQL editor). Amounts are USD cents. The page does not call a payment provider.
+Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Amounts are USD cents. That in-app ledger is a scratch pad. The Cheetahs Splitwise group is the ledger of record, with Venmo pay links. Setup is in [docs/splitwise-venmo.md](docs/splitwise-venmo.md).
+
+Apply `supabase/migrations/20261106180000_splitwise_snapshot.sql` on project `lutcbvzunjcosncvdyke` (`supabase db push`, or paste the file into the SQL editor). Do not put `SPLITWISE_API_KEY`, an OAuth secret, or the service role key in a `VITE_` variable or in git.
+
+| Secret | Value |
+| --- | --- |
+| `SPLITWISE_API_KEY` | Personal API key from the treasurer's app at [secure.splitwise.com/apps](https://secure.splitwise.com/apps). Sent as `Authorization: Bearer`. Prefer this over OAuth. |
+| `SPLITWISE_GROUP_ID` | Numeric id from `https://secure.splitwise.com/groups/<id>`. Not `0` (that id is non-group expenses). |
+| `SPLITWISE_GROUP_NAME` | Optional exact group name if `SPLITWISE_GROUP_ID` is unset. The id wins when both are set. |
+| `VENMO_USERNAME` | Club Venmo handle, without `@`. Public. After a refresh, pay links use this. |
+| `SPLITWISE_CRON_SECRET` | Optional. Long random string for the hourly job. Not the service role key. |
+| `SPLITWISE_CLIENT_ID`, `SPLITWISE_CLIENT_SECRET`, `SPLITWISE_REFRESH_TOKEN` | Optional OAuth refresh, used only when `SPLITWISE_API_KEY` is unset. |
+
+`VITE_VENMO_USERNAME` is the public fallback handle baked in at build time, before the first refresh. Default placeholder: `cheetahs`. Set the real handle before players pay. Pages build vars are only the two Supabase values plus this handle. Never add a Splitwise secret there.
+
+```bash
+supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase secrets set \
+  SPLITWISE_API_KEY='the treasurer key' \
+  SPLITWISE_GROUP_ID='12345678' \
+  VENMO_USERNAME='the-club-handle' \
+  SPLITWISE_CRON_SECRET="$(openssl rand -hex 32)" \
+  --project-ref lutcbvzunjcosncvdyke
+```
+
+The handler still requires a captain or admin JWT, or the `x-splitwise-cron` header. `--no-verify-jwt` only lets the cron request reach that check. Map members by using the same email in Splitwise and in the clubhouse. A captain opens Dues and refreshes. Players read only their mapped balance row.
 
 `public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity.
 
