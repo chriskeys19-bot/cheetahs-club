@@ -1,7 +1,7 @@
 export function SetupNotice() {
   return (
     <div className="splash">
-      <img src="/crest.jpg" alt="Cheetah Cricket Club crest" width={112} height={112} />
+      <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={112} height={112} />
       <div className="setup-copy">
         <h1>Clubhouse needs its keys</h1>
         <p>

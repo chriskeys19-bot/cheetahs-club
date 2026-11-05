@@ -31,7 +31,7 @@ export function Shell() {
         <NavLink to="/" className="brand" end>
           <img src="/crest.jpg" alt="" width={56} height={56} />
           <span className="brand-text">
-            <span className="brand-kicker">Cheetah</span>
+            <span className="brand-kicker">Cheetahs</span>
             <span className="brand-name">Cricket Club</span>
           </span>
         </NavLink>
