@@ -556,12 +556,55 @@ a.home-feedback > span:first-child {
   border-bottom: 4px solid var(--gold);
 }
 
+.topbar-brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  min-width: 0;
+}
+
 .brand {
   display: flex;
   align-items: center;
   gap: 12px;
   color: var(--cream);
   text-decoration: none;
+}
+
+.instagram-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 2px;
+  color: var(--cream);
+  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.2;
+  text-decoration: none;
+  border-radius: 8px;
+}
+
+.instagram-link:hover,
+.instagram-link:focus-visible {
+  color: var(--gold);
+}
+
+.instagram-link:hover .instagram-handle,
+.instagram-link:focus-visible .instagram-handle {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.instagram-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.instagram-handle {
+  white-space: nowrap;
 }
 
 .brand img {
@@ -815,6 +858,18 @@ a:focus-visible {
 
   .hero-copy {
     margin-inline: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .instagram-handle {
+    display: none;
+  }
+
+  .instagram-link {
+    justify-content: center;
+    width: 44px;
+    padding: 0;
   }
 }
 
