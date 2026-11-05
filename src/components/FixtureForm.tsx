@@ -1,5 +1,15 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { RecurrenceFields } from './RecurrenceFields.tsx'
+import {
+  ballLabel,
+  defaultKit,
+  dressLabel,
+  isBallColor,
+  isDressCode,
+  isGameResult,
+  isVenueSide,
+  parseScorecardUrl,
+} from '../lib/games.ts'
 import { expandCadence, type Cadence } from '../lib/recurrence.ts'
 import { saveFixture, saveFixtureSeries, type FixtureInput } from '../lib/schedules.ts'
 import type { ScheduleEvent, ScheduleEventType, Team } from '../lib/types.ts'
@@ -48,11 +58,19 @@ export function FixtureForm({
   const [recurMode, setRecurMode] = useState<'until' | 'count'>('count')
   const [recurUntil, setRecurUntil] = useState('')
   const [recurCount, setRecurCount] = useState('')
+  const [venueSide, setVenueSide] = useState(initial?.venue_side ?? '')
+  const [ballColor, setBallColor] = useState(initial?.ball_color ?? '')
+  const [dressCode, setDressCode] = useState(initial?.dress_code ?? '')
+  const [result, setResult] = useState(initial?.result ?? '')
+  const [scorecard, setScorecard] = useState(initial?.scorecard_url ?? '')
+  const [matchStatus, setMatchStatus] = useState<'scheduled' | 'completed'>(initial?.match_status ?? 'scheduled')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const teamRequired = eventType === 'league_game' || eventType === 'umpiring'
   const selectedTeam = teamRequired ? teamId || teams[0]?.id || '' : teamId
+  const teamSlug = teams.find((team) => team.id === selectedTeam)?.slug ?? null
+  const kitDefault = defaultKit(teamSlug)
   const opponentLabel =
     eventType === 'umpiring' ? 'Matchup' : eventType === 'other' ? 'Title' : eventType === 'practice' ? 'Label' : 'Opponent'
 
@@ -109,6 +127,47 @@ export function FixtureForm({
       setError('One of the fields is too long.')
       return
     }
+    let nextVenue: 'home' | 'away' | null = null
+    let nextBall: 'white' | 'pink' | null = null
+    let nextDress: 'cheetahs_colors' | 'whites' | null = null
+    let nextResult: 'win' | 'loss' | 'draw' | 'nr' | null = null
+    let nextScorecard: string | null = null
+    let nextStatus: 'scheduled' | 'completed' = 'scheduled'
+    if (eventType === 'league_game') {
+      if (!isVenueSide(venueSide)) {
+        setError('Mark the league game Home or Away.')
+        return
+      }
+      nextVenue = venueSide
+      if (ballColor.length > 0) {
+        if (!isBallColor(ballColor)) {
+          setError('Choose a ball color.')
+          return
+        }
+        nextBall = ballColor
+      }
+      if (dressCode.length > 0) {
+        if (!isDressCode(dressCode)) {
+          setError('Choose a dress code.')
+          return
+        }
+        nextDress = dressCode
+      }
+      if (result.length > 0) {
+        if (!isGameResult(result)) {
+          setError('Choose a result.')
+          return
+        }
+        nextResult = result
+      }
+      const parsedScorecard = parseScorecardUrl(scorecard)
+      if (parsedScorecard === 'invalid') {
+        setError('Scorecard links need to start with http:// or https://.')
+        return
+      }
+      nextScorecard = parsedScorecard
+      nextStatus = matchStatus === 'completed' ? 'completed' : 'scheduled'
+    }
     const draft: FixtureInput = {
       id: initial?.id,
       team_id: selectedTeam.length > 0 ? selectedTeam : null,
@@ -122,6 +181,12 @@ export function FixtureForm({
       opponent: nextOpponent,
       division: eventType === 'umpiring' && nextDivision.length > 0 ? nextDivision : null,
       notes: nextNotes.length > 0 ? nextNotes : null,
+      venue_side: nextVenue,
+      ball_color: nextBall,
+      dress_code: nextDress,
+      result: nextResult,
+      scorecard_url: nextScorecard,
+      match_status: nextStatus,
     }
     let seriesDates: string[] | null = null
     if (!initial && recurring) {
@@ -256,6 +321,100 @@ export function FixtureForm({
           />
         </div>
       </div>
+      {eventType === 'league_game' ? (
+        <div className="form-grid two">
+          <div>
+            <label htmlFor={`${titleId}-venue`}>Home or away</label>
+            <select
+              id={`${titleId}-venue`}
+              name="venueSide"
+              value={venueSide}
+              onChange={(event) => setVenueSide(isVenueSide(event.target.value) ? event.target.value : '')}
+              required
+            >
+              <option value="">Choose</option>
+              <option value="home">Home</option>
+              <option value="away">Away</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-status`}>Status</label>
+            <select
+              id={`${titleId}-status`}
+              name="matchStatus"
+              value={matchStatus}
+              onChange={(event) => setMatchStatus(event.target.value === 'completed' ? 'completed' : 'scheduled')}
+            >
+              <option value="scheduled">Scheduled</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-ball`}>Ball</label>
+            <select
+              id={`${titleId}-ball`}
+              name="ballColor"
+              value={ballColor}
+              onChange={(event) => setBallColor(isBallColor(event.target.value) ? event.target.value : '')}
+            >
+              <option value="">
+                Team default{kitDefault ? ` (${ballLabel(kitDefault.ball)})` : ''}
+              </option>
+              <option value="white">White Ball</option>
+              <option value="pink">Pink Ball</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-dress`}>Dress code</label>
+            <select
+              id={`${titleId}-dress`}
+              name="dressCode"
+              value={dressCode}
+              onChange={(event) => setDressCode(isDressCode(event.target.value) ? event.target.value : '')}
+            >
+              <option value="">
+                Team default{kitDefault ? ` (${dressLabel(kitDefault.dress)})` : ''}
+              </option>
+              <option value="cheetahs_colors">Cheetahs Colors</option>
+              <option value="whites">Whites</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-result`}>Result</label>
+            <select
+              id={`${titleId}-result`}
+              name="result"
+              value={result}
+              onChange={(event) => setResult(isGameResult(event.target.value) ? event.target.value : '')}
+            >
+              <option value="">Not posted</option>
+              <option value="win">Win</option>
+              <option value="loss">Loss</option>
+              <option value="draw">Draw</option>
+              <option value="nr">No result</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-scorecard`}>Scorecard link</label>
+            <input
+              id={`${titleId}-scorecard`}
+              name="scorecard"
+              type="url"
+              inputMode="url"
+              value={scorecard}
+              onChange={(event) => setScorecard(event.target.value)}
+              maxLength={500}
+              placeholder="https://"
+            />
+          </div>
+        </div>
+      ) : null}
+      {eventType === 'league_game' ? (
+        <p className="fine-print">
+          Alpha and Beta default to a white ball and Cheetahs colors. Gamma defaults to a pink ball and whites.
+          Leave ball and dress on Team default unless this game is different. A past start counts as completed.
+        </p>
+      ) : null}
       <label htmlFor={`${titleId}-ground`}>Ground</label>
       <input
         id={`${titleId}-ground`}

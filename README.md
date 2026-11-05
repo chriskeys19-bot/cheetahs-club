@@ -124,6 +124,10 @@ Wednesday Cheetahs practice is seeded from the next Wednesday after 2026-11-05 (
 
 On create, admins and captains can mark a schedule event or an activity as recurring: Daily, Weekly, Biweekly, or Monthly, in America/Los_Angeles civil dates. They choose an inclusive end date or a number of occurrences. The app writes one row per date, up to 52. A longer range is rejected and nothing is saved. Rows from one save share `series_id`. Editing or deleting one row does not change the others.
 
+League games store `venue_side` (`home` or `away`). The winter sheet has no home/away column, so seeded rows stay null and the cards show — until a captain sets them. `ball_color` and `dress_code` are optional overrides. When they are null, Alpha and Beta display White Ball and Cheetahs Colors, and Gamma displays Pink Ball and Whites. `result` is `win`, `loss`, `draw`, or `nr`. `scorecard_url` is an http(s) link. `match_status` is `scheduled` or `completed`. A past start is treated as completed even when the status is still scheduled. Result and scorecard show on completed league games. Players can read these fields. Admins and captains write them.
+
+Three stream scorecards are stored, with `result` left null because the public CricClubs pages did not return a verifiable win or loss: Beta vs Livermore Monks on 1 Nov 2026, Alpha vs Cougars Black on 1 Nov 2026, and Alpha vs BT Knights on 25 Oct 2026 at Caroline Davis School. That October game was not on the winter sheet, so the migration adds the row.
+
 `public.invites` holds player join links. Admins and captains can insert, read, and revoke pending rows (`private.is_staff()`). Players cannot read the table, so tokens are not listed to them. Accepting a link is `accept-invite` (service role). `preview-invite` checks a token before the form is shown. Both functions authenticate with the token itself (`verify_jwt` is off; see `supabase/config.toml`). Deploy them with the Supabase CLI if they are not already on the project:
 
 ```bash

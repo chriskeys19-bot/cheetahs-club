@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { GameMeta } from './GameMeta.tsx'
 import { formatFixture, formatPacificDate } from '../lib/format.ts'
 import { eventKindLabel, eventTitle } from '../lib/schedules.ts'
 import type { ScheduleEvent, Team } from '../lib/types.ts'
@@ -58,13 +59,11 @@ export function ThisWeek({
           {events.map((event) => {
             const when = formatFixture(event.game_date, event.start_time, event.end_time)
             const side = sideName(teams, event.team_id)
+            const slug = teams.find((team) => team.id === event.team_id)?.slug ?? null
             const played = asOf !== null && new Date(event.starts_at).getTime() < asOf
             return (
-              <li key={event.id}>
-                <Link
-                  className={played ? 'info-card is-past' : 'info-card'}
-                  to={scheduleHref(event, teams)}
-                >
+              <li key={event.id} className={played ? 'info-card is-past' : 'info-card'}>
+                <Link className="card-title-link" to={scheduleHref(event, teams)}>
                   <div className="tag-row">
                     <span className="tag tag-gold">{when.time}</span>
                     <span className="tag tag-navy">{eventKindLabel(event.event_type)}</span>
@@ -75,6 +74,7 @@ export function ThisWeek({
                   <h3>{eventTitle(event, side)}</h3>
                   <p>{event.ground}</p>
                 </Link>
+                <GameMeta event={event} teamSlug={slug} asOf={asOf} />
               </li>
             )
           })}

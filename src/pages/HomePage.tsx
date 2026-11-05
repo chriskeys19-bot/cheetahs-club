@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { GameMeta } from '../components/GameMeta.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
@@ -213,6 +214,7 @@ export function HomePage() {
                     {when.date} · {when.time}
                   </p>
                   <h3>{eventTitle(fixture, side?.name ?? null)}</h3>
+                  <GameMeta event={fixture} teamSlug={side?.slug ?? null} asOf={asOf} />
                   <p className="fine-print">{fixture.ground}</p>
                 </li>
               )

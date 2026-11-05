@@ -1,4 +1,5 @@
 import { actionError } from './errors.ts'
+import { isBallColor, isDressCode, isGameResult, isVenueSide } from './games.ts'
 import { supabase } from './supabase.ts'
 import { SCHEDULE_EVENT_TYPES, type ScheduleEvent, type ScheduleEventType } from './types.ts'
 
@@ -74,13 +75,19 @@ function parseEvents(value: unknown): ScheduleEvent[] {
       notes: typeof row.notes === 'string' ? row.notes : null,
       created_by: typeof row.created_by === 'string' ? row.created_by : null,
       series_id: typeof row.series_id === 'string' ? row.series_id : null,
+      venue_side: typeof row.venue_side === 'string' && isVenueSide(row.venue_side) ? row.venue_side : null,
+      ball_color: typeof row.ball_color === 'string' && isBallColor(row.ball_color) ? row.ball_color : null,
+      dress_code: typeof row.dress_code === 'string' && isDressCode(row.dress_code) ? row.dress_code : null,
+      result: typeof row.result === 'string' && isGameResult(row.result) ? row.result : null,
+      scorecard_url: typeof row.scorecard_url === 'string' ? row.scorecard_url : null,
+      match_status: row.match_status === 'completed' ? 'completed' : 'scheduled',
     })
   }
   return rows
 }
 
 const columns =
-  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by, series_id'
+  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by, series_id, venue_side, ball_color, dress_code, result, scorecard_url, match_status'
 
 export async function loadSchedule(): Promise<{ rows: ScheduleEvent[]; error: string | null }> {
   if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
@@ -106,6 +113,12 @@ export type FixtureInput = {
   opponent: string
   division: string | null
   notes: string | null
+  venue_side: ScheduleEvent['venue_side']
+  ball_color: ScheduleEvent['ball_color']
+  dress_code: ScheduleEvent['dress_code']
+  result: ScheduleEvent['result']
+  scorecard_url: string | null
+  match_status: ScheduleEvent['match_status']
 }
 
 export async function saveFixture(input: FixtureInput): Promise<string | null> {
@@ -124,6 +137,12 @@ export async function saveFixture(input: FixtureInput): Promise<string | null> {
     opponent: input.opponent.trim(),
     division: input.event_type === 'umpiring' ? input.division : null,
     notes: input.notes,
+    venue_side: input.event_type === 'league_game' ? input.venue_side : null,
+    ball_color: input.event_type === 'league_game' ? input.ball_color : null,
+    dress_code: input.event_type === 'league_game' ? input.dress_code : null,
+    result: input.event_type === 'league_game' ? input.result : null,
+    scorecard_url: input.event_type === 'league_game' ? input.scorecard_url : null,
+    match_status: input.event_type === 'league_game' ? input.match_status : 'scheduled',
   }
   const { error } = input.id
     ? await supabase.from('schedule_events').update(payload).eq('id', input.id)
@@ -151,6 +170,12 @@ export async function saveFixtureSeries(inputs: FixtureInput[], seriesId: string
       division: input.event_type === 'umpiring' ? input.division : null,
       notes: input.notes,
       series_id: seriesId,
+      venue_side: input.event_type === 'league_game' ? input.venue_side : null,
+      ball_color: input.event_type === 'league_game' ? input.ball_color : null,
+      dress_code: input.event_type === 'league_game' ? input.dress_code : null,
+      result: input.event_type === 'league_game' ? input.result : null,
+      scorecard_url: input.event_type === 'league_game' ? input.scorecard_url : null,
+      match_status: input.event_type === 'league_game' ? input.match_status : 'scheduled',
     })
   }
   const { error } = await supabase.from('schedule_events').insert(rows)
