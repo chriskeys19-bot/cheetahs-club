@@ -7,6 +7,16 @@ function clock(value: string): string {
   return match ? match[1] : ''
 }
 
+function minutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  if (!match) return null
+  return Number(match[1]) * 60 + Number(match[2])
+}
+
+function isEventType(value: string): value is ScheduleEventType {
+  return value === 'league_game' || value === 'umpiring' || value === 'practice' || value === 'other'
+}
+
 export function FixtureForm({
   teams,
   initial,
@@ -22,10 +32,10 @@ export function FixtureForm({
   const sending = useRef(false)
   const [eventType, setEventType] = useState<ScheduleEventType>(initial?.event_type ?? 'league_game')
   const [teamId, setTeamId] = useState(initial?.team_id ?? '')
-  const selectedTeam = teamId || teams[0]?.id || ''
   const [opponent, setOpponent] = useState(initial?.opponent ?? '')
   const [date, setDate] = useState(initial?.game_date.slice(0, 10) ?? '')
   const [time, setTime] = useState(initial ? clock(initial.start_time) : '')
+  const [endTime, setEndTime] = useState(initial?.end_time ? clock(initial.end_time) : '')
   const [format, setFormat] = useState(initial?.match_format ?? (initial ? '' : 'T20'))
   const [ground, setGround] = useState(initial?.ground ?? '')
   const [address, setAddress] = useState(initial?.address ?? '')
@@ -34,10 +44,24 @@ export function FixtureForm({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  const teamRequired = eventType === 'league_game' || eventType === 'umpiring'
+  const selectedTeam = teamRequired ? teamId || teams[0]?.id || '' : teamId
+  const opponentLabel =
+    eventType === 'umpiring' ? 'Matchup' : eventType === 'other' ? 'Title' : eventType === 'practice' ? 'Label' : 'Opponent'
+
+  function onTypeChange(value: string) {
+    if (!isEventType(value)) return
+    setEventType(value)
+    if (value === 'practice' && opponent.trim().length === 0) setOpponent('Cheetahs practice')
+    if (value !== 'umpiring') setDivision('')
+    if (!initial && (value === 'practice' || value === 'other' || value === 'umpiring')) setFormat('')
+    if (!initial && value === 'league_game' && format.trim().length === 0) setFormat('T20')
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (sending.current) return
-    if (!selectedTeam) {
+    if (teamRequired && !selectedTeam) {
       setError('Choose a side.')
       return
     }
@@ -45,10 +69,24 @@ export function FixtureForm({
       setError('Choose a date and a Pacific start time.')
       return
     }
-    const nextOpponent = opponent.trim()
+    if (endTime.length > 0 && !/^\d{2}:\d{2}$/.test(endTime)) {
+      setError('Choose a Pacific end time, or leave it blank.')
+      return
+    }
+    const startMinutes = minutes(time)
+    const finishMinutes = endTime.length > 0 ? minutes(endTime) : null
+    if (startMinutes === null || (endTime.length > 0 && finishMinutes === null)) {
+      setError('Choose a Pacific start time and, if you set one, an end time.')
+      return
+    }
+    if (finishMinutes !== null && finishMinutes <= startMinutes) {
+      setError('End time has to be later than the start, on the same Pacific day.')
+      return
+    }
+    const nextOpponent = (opponent.trim() || (eventType === 'practice' ? 'Cheetahs practice' : '')).trim()
     const nextGround = ground.trim()
     if (nextOpponent.length < 1 || nextOpponent.length > 160 || nextGround.length < 1 || nextGround.length > 160) {
-      setError('Add an opponent and a ground.')
+      setError(eventType === 'practice' || eventType === 'other' ? 'Add a label and a ground.' : 'Add an opponent and a ground.')
       return
     }
     const nextAddress = address.trim()
@@ -69,10 +107,11 @@ export function FixtureForm({
     setError(null)
     const message = await saveFixture({
       id: initial?.id,
-      team_id: selectedTeam,
+      team_id: selectedTeam.length > 0 ? selectedTeam : null,
       event_type: eventType,
       game_date: date,
       start_time: time,
+      end_time: endTime.length > 0 ? endTime : null,
       match_format: nextFormat.length > 0 ? nextFormat : null,
       ground: nextGround,
       address: nextAddress.length > 0 ? nextAddress : null,
@@ -93,30 +132,25 @@ export function FixtureForm({
     <form className="composer" onSubmit={onSubmit}>
       <div className="section-heading">
         <p className="kicker">{initial ? 'Edit' : 'New'}</p>
-        <h2>{initial ? 'Update this fixture' : 'Add a fixture'}</h2>
+        <h2>{initial ? 'Update this event' : 'Add an event'}</h2>
       </div>
-      <p className="lede">Date and start time are Pacific wall-clock times.</p>
+      <p className="lede">
+        Date and times are Pacific wall-clock times. End is optional. Choose Club-wide for a practice or other event that is for every Cheetahs side.
+      </p>
       <div className="form-grid two">
         <div>
           <label htmlFor={`${titleId}-type`}>Kind</label>
-          <select
-            id={`${titleId}-type`}
-            name="eventType"
-            value={eventType}
-            onChange={(event) => setEventType(event.target.value === 'umpiring' ? 'umpiring' : 'league_game')}
-          >
+          <select id={`${titleId}-type`} name="eventType" value={eventType} onChange={(event) => onTypeChange(event.target.value)}>
             <option value="league_game">League game</option>
             <option value="umpiring">Umpiring</option>
+            <option value="practice">Practice</option>
+            <option value="other">Other</option>
           </select>
         </div>
         <div>
           <label htmlFor={`${titleId}-side`}>Side</label>
-          <select
-            id={`${titleId}-side`}
-            name="team"
-            value={selectedTeam}
-            onChange={(event) => setTeamId(event.target.value)}
-          >
+          <select id={`${titleId}-side`} name="team" value={selectedTeam} onChange={(event) => setTeamId(event.target.value)}>
+            {teamRequired ? null : <option value="">Club-wide</option>}
             {teams.map((team) => (
               <option key={team.id} value={team.id}>
                 {team.name}
@@ -146,16 +180,28 @@ export function FixtureForm({
             required
           />
         </div>
+        <div>
+          <label htmlFor={`${titleId}-end`}>End</label>
+          <input
+            id={`${titleId}-end`}
+            name="end"
+            type="time"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+          />
+        </div>
       </div>
-      <label htmlFor={titleId}>{eventType === 'umpiring' ? 'Matchup' : 'Opponent'}</label>
+      <label htmlFor={titleId}>{opponentLabel}</label>
       <input
         id={titleId}
         name="opponent"
         value={opponent}
         onChange={(event) => setOpponent(event.target.value)}
         maxLength={160}
-        required
-        placeholder={eventType === 'umpiring' ? 'Home vs Visitor' : 'Opposition'}
+        required={eventType !== 'practice'}
+        placeholder={
+          eventType === 'umpiring' ? 'Home vs Visitor' : eventType === 'practice' ? 'Cheetahs practice' : eventType === 'other' ? 'Event title' : 'Opposition'
+        }
       />
       <div className="form-grid two">
         <div>
@@ -207,15 +253,11 @@ export function FixtureForm({
         rows={3}
       />
       <div className="composer-row">
-        {initial ? (
-          <button type="button" className="button button-quiet" onClick={onCancel} disabled={busy}>
-            Cancel
-          </button>
-        ) : (
-          <span />
-        )}
+        <button type="button" className="button button-quiet" onClick={onCancel} disabled={busy}>
+          Cancel
+        </button>
         <button type="submit" className="button button-gold" disabled={busy}>
-          {busy ? 'Saving…' : initial ? 'Save fixture' : 'Add fixture'}
+          {busy ? 'Saving…' : initial ? 'Save event' : 'Add event'}
         </button>
       </div>
       {error ? (

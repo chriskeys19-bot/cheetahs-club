@@ -84,7 +84,9 @@ export type Activity = {
   created_at: string
 }
 
-export type ScheduleEventType = 'league_game' | 'umpiring'
+export const SCHEDULE_EVENT_TYPES = ['league_game', 'umpiring', 'practice', 'other'] as const
+
+export type ScheduleEventType = (typeof SCHEDULE_EVENT_TYPES)[number]
 
 export type ScheduleEvent = {
   id: string
@@ -92,7 +94,9 @@ export type ScheduleEvent = {
   umpiring_team_id: string | null
   game_date: string
   start_time: string
+  end_time: string | null
   starts_at: string
+  ends_at: string | null
   match_format: string | null
   ground: string
   address: string | null
@@ -100,6 +104,7 @@ export type ScheduleEvent = {
   event_type: ScheduleEventType
   division: string | null
   notes: string | null
+  created_by: string | null
 }
 
 export type PollStatus = 'open' | 'closed'

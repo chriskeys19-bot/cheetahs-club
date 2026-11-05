@@ -82,7 +82,13 @@ SQL lives in `supabase/migrations` and is already applied on the club project. F
 
 `public.feedback` holds suggestions. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that.
 
-Phase 2 adds `announcements`, `activities`, `schedule_events`, `polls`, `poll_options`, and `poll_votes`. Signed-in members can read them. Admins and captains can change announcements, activities, fixtures, and polls. Any signed-in member can vote once on an open poll. Vote totals come from `public.poll_tallies()`, which does not return voter ids. `schedule_events` is seeded with the Winter 2026-27 league games and umpiring duties. `game_date` and `start_time` are Pacific wall-clock values. `starts_at` is the matching UTC instant.
+Phase 2 adds `announcements`, `activities`, `schedule_events`, `polls`, `poll_options`, and `poll_votes`. Signed-in members can read them. Admins and captains can change announcements, activities, schedule events, and polls. Any signed-in member can vote once on an open poll. Vote totals come from `public.poll_tallies()`, which does not return voter ids.
+
+`schedule_events` holds league games, umpiring duties, practice, and other events (`event_type` is `league_game`, `umpiring`, `practice`, or `other`). `game_date`, `start_time`, and optional `end_time` are Pacific wall-clock values. `starts_at` and `ends_at` are the matching UTC instants. A null `team_id` on practice or other means the event is club-wide. `created_by` is stamped from the signed-in user on insert. Signed-in members can read every row. Admins and captains can insert. Admins, captains, and the creating user can update and delete. The schedules screen shows create, edit, and delete only to admins and captains, and delete asks for confirmation. Players stay read-only in the UI. The winter league games and umpiring duties are seeded.
+
+The home page section **What's happening this week** lists events whose `game_date` falls in the current club week. A week is Monday through Sunday in America/Los_Angeles.
+
+Wednesday Cheetahs practice is seeded from the next Wednesday after 2026-11-05 (2026-11-11) through 2027-03-31, 8:30–10:00 PM Pacific, at US Cricket Store, 121 Ranch Dr, Milpitas, CA 95035. Those rows are club-wide (`team_id` null, `event_type` `practice`).
 
 `public.invites` holds player join links. Admins and captains can insert, read, and revoke pending rows. Players cannot read the table, so tokens are not listed to them. Accepting a link is `accept-invite` (service role). `preview-invite` checks a token before the form is shown. Both functions authenticate with the token itself (`verify_jwt` is off; see `supabase/config.toml`). Deploy them with the Supabase CLI if they are not already on the project:
 
