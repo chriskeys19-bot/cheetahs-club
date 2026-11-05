@@ -11,3 +11,10 @@ verify_jwt = false
 
 [functions.accept-invite]
 verify_jwt = false
+
+# send-invite-email is only for a signed-in captain or admin.
+# The gateway requires a user JWT. The function then checks profiles.role
+# and reads the invite under that user's row level security.
+
+[functions.send-invite-email]
+verify_jwt = true

@@ -43,7 +43,7 @@ npm run dev
 
 Accounts are email and password. There is no public sign-up on `/login`. The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`.
 
-Captains and admins both open **Invites**. The nav link and the invite policies use the same staff check (`admin` or `captain`). Creating an invite stores a single-use token and shows `https://cheetahs-club.pages.dev/join/<token>` to copy. The app does not send that email yet. A later mailer (Resend or SMTP) can send the same URL; do not block the invite on club Gmail. The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`. An email that already has an account is rejected here. Use **Add to a side** on the same page instead of another join link.
+Captains and admins both open **Invites**. The nav link and the invite policies use the same staff check (`admin` or `captain`). Creating an invite stores a single-use token and emails `https://cheetahs-club.pages.dev/join/<token>` from `cheetahscc123@gmail.com` (display name Cheetahs Cricket Club). The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`. If the email does not send, the invite stays and the captain can still copy the link. An email that already has an account is rejected here. Use **Add to a side** on the same page instead of another join link.
 
 **Add to a side** places someone who already signed in onto Alpha, Beta, or Gamma, including a player who is already on another side. Captains and admins can add or remove those memberships. Players cannot. The club role does not change.
 
@@ -99,7 +99,29 @@ Wednesday Cheetahs practice is seeded from the next Wednesday after 2026-11-05 (
 ```bash
 supabase functions deploy preview-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy accept-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy send-invite-email --project-ref lutcbvzunjcosncvdyke
 ```
+
+`send-invite-email` keeps JWT verification on. Only a signed-in captain or admin can call it. It loads the pending invite with that user's row level security, then sends the join link. It does not take an email address or token from the browser.
+
+Set these secrets on project `lutcbvzunjcosncvdyke` before sends will work. Do not put them in Vite env or in git.
+
+| Secret | Value |
+| --- | --- |
+| `INVITE_SMTP_USER` | `cheetahscc123@gmail.com` |
+| `INVITE_SMTP_PASS` | Gmail App Password for that mailbox (2-Step Verification required). Not the normal Gmail password. |
+| `INVITE_FROM_NAME` | Optional. Defaults to `Cheetahs Cricket Club`. |
+| `APP_ORIGIN` | Optional. Defaults to `https://cheetahs-club.pages.dev`. |
+
+```bash
+supabase secrets set \
+  INVITE_SMTP_USER=cheetahscc123@gmail.com \
+  INVITE_SMTP_PASS='the app password' \
+  INVITE_FROM_NAME='Cheetahs Cricket Club' \
+  --project-ref lutcbvzunjcosncvdyke
+```
+
+The function uses Gmail SMTP on port 465. Supabase Edge blocks outbound ports 25 and 587. Until `INVITE_SMTP_PASS` is set, captains still get the copyable join link.
 
 Admins list members with `public.list_club_members()` and change a role with `public.set_member_role(target_id, new_role)`. Both are security-invoker wrappers. The privileged work runs in `private`, and only an admin can call it successfully. `authenticated` cannot update `profiles.role` directly. Trigger `profiles_guard_role` rejects a role change from anyone except an admin changing someone else, and it rejects removing the last admin. Signup and invite acceptance still store `player`.
 

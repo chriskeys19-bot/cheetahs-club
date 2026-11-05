@@ -76,6 +76,39 @@ export async function createInvite(input: {
   return { invite, error: null, existingAccount: false }
 }
 
+const EMAIL_FALLBACK = 'The invite is saved, but the email did not send. Copy the join link and send it yourself.'
+
+async function messageFromInvoke(error: unknown): Promise<string> {
+  const context =
+    error && typeof error === 'object' && 'context' in error ? (error as { context?: unknown }).context : null
+  if (context && typeof context === 'object' && 'json' in context && typeof (context as Response).json === 'function') {
+    try {
+      const body = await (context as Response).json()
+      if (body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+        const message = (body as { error: string }).error.trim()
+        if (message) return message
+      }
+    } catch {
+      return EMAIL_FALLBACK
+    }
+  }
+  return EMAIL_FALLBACK
+}
+
+export async function sendInviteEmail(inviteId: string): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData.session?.access_token
+  if (!accessToken) return 'Sign in again, then send the invite.'
+
+  const { error } = await supabase.functions.invoke('send-invite-email', {
+    body: { inviteId },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!error) return null
+  return messageFromInvoke(error)
+}
+
 export async function revokeInvite(id: string): Promise<string | null> {
   if (!supabase) return 'Supabase is not configured.'
   const { data, error } = await supabase
