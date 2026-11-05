@@ -30,8 +30,8 @@ export function AdminPage() {
         <p className="kicker">Club office</p>
         <h1>Admin</h1>
         <p className="lede">
-          Roster moves, availability, and match admin arrive in a later phase. This desk is the
-          stub for that work.
+          Announcements, activities, schedules, and polls live on their own boards. This desk still
+          holds every suggestion for admins.
         </p>
       </header>
       <section className="panel">

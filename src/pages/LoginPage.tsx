@@ -52,7 +52,7 @@ export function LoginPage() {
         <div>
           <p className="hero-kicker">Members</p>
           <h1>Cheetah Cricket Club</h1>
-          <p className="hero-copy">Sign in for your role and the suggestion box.</p>
+          <p className="hero-copy">Sign in for announcements, fixtures, polls, and the suggestion box.</p>
         </div>
       </section>
       <section className="login-panel">

@@ -3,49 +3,49 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FeedbackComposer } from '../components/FeedbackComposer.tsx'
 import { FeedbackList } from '../components/FeedbackList.tsx'
+import { loadAnnouncements } from '../lib/announcements.ts'
 import { loadFeedback } from '../lib/feedback.ts'
-import { supabase } from '../lib/supabase.ts'
-import { displayName, roleLabel, type FeedbackRow, type Team } from '../lib/types.ts'
-
-function parseTeams(value: unknown): Team[] {
-  if (!Array.isArray(value)) return []
-  const teams: Team[] = []
-  for (const item of value) {
-    if (!item || typeof item !== 'object') continue
-    const row = item as Record<string, unknown>
-    if (typeof row.id !== 'string' || typeof row.name !== 'string' || typeof row.slug !== 'string') {
-      continue
-    }
-    teams.push({ id: row.id, name: row.name, slug: row.slug })
-  }
-  return teams
-}
+import { formatFixture } from '../lib/format.ts'
+import { loadSchedule } from '../lib/schedules.ts'
+import { loadTeams } from '../lib/teams.ts'
+import { displayName, roleLabel, type Announcement, type FeedbackRow, type ScheduleEvent, type Team } from '../lib/types.ts'
 
 export function HomePage() {
   const { session, profile, profileError } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [teamError, setTeamError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Announcement | null>(null)
+  const [fixtures, setFixtures] = useState<ScheduleEvent[]>([])
+  const [boardReady, setBoardReady] = useState(false)
+  const [boardError, setBoardError] = useState<string | null>(null)
   const [rows, setRows] = useState<FeedbackRow[]>([])
   const [listError, setListError] = useState<string | null>(null)
   const [listToken, setListToken] = useState(0)
 
   useEffect(() => {
-    if (!supabase) return
     let cancelled = false
-    supabase
-      .from('teams')
-      .select('id, name, slug')
-      .order('slug')
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          setTeamError(error.message)
-          setTeams([])
-        } else {
-          setTeamError(null)
-          setTeams(parseTeams(data))
-        }
-      })
+    loadTeams().then(({ teams: next, error }) => {
+      if (cancelled) return
+      setTeams(next)
+      setTeamError(error)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([loadAnnouncements(), loadSchedule()]).then(([announcements, schedule]) => {
+      if (cancelled) return
+      setNotice(announcements.rows[0] ?? null)
+      const now = Date.now()
+      setFixtures(
+        schedule.rows.filter((event) => new Date(event.starts_at).getTime() >= now).slice(0, 3),
+      )
+      setBoardError(announcements.error ?? schedule.error)
+      setBoardReady(true)
+    })
     return () => {
       cancelled = true
     }
@@ -91,14 +91,67 @@ export function HomePage() {
           ) : null}
           <ul className="team-grid">
             {teams.map((team) => (
-              <li key={team.id} className="team-card">
-                <p className="team-slug">{team.slug}</p>
-                <p className="team-name">{team.name}</p>
+              <li key={team.id}>
+                <Link className="team-card" to={`/schedules?side=${team.slug}`}>
+                  <p className="team-slug">{team.slug}</p>
+                  <p className="team-name">{team.name}</p>
+                </Link>
               </li>
             ))}
           </ul>
         </section>
       </div>
+      <section className="panel" aria-labelledby="board-heading">
+        <div className="section-heading">
+          <p className="kicker">Noticeboard</p>
+          <h2 id="board-heading">From the club</h2>
+        </div>
+        {boardError ? (
+          <p className="banner banner-error" role="alert">
+            {boardError}
+          </p>
+        ) : null}
+        {!boardReady ? <p className="empty-copy">Loading the board…</p> : null}
+        {boardReady && notice ? (
+          <article className="info-card">
+            <div className="tag-row">
+              {notice.pinned ? <span className="tag tag-gold">Pinned</span> : null}
+            </div>
+            <h3>{notice.title}</h3>
+            <p className="clamp">{notice.body}</p>
+          </article>
+        ) : null}
+        {boardReady && !notice && !boardError ? <p className="empty-copy">No announcements yet.</p> : null}
+        {fixtures.length > 0 ? (
+          <ul className="card-list">
+            {fixtures.map((fixture) => {
+              const when = formatFixture(fixture.game_date, fixture.start_time)
+              const side = teams.find((team) => team.id === fixture.team_id)
+              return (
+                <li key={fixture.id} className="info-card">
+                  <p className="fixture-date">
+                    {when.date} · {when.time}
+                  </p>
+                  <h3>
+                    {side ? side.name.replace('Cheetahs ', '') : 'Club'} ·{' '}
+                    {fixture.event_type === 'umpiring' ? fixture.opponent : `vs ${fixture.opponent}`}
+                  </h3>
+                  <p className="fine-print">{fixture.ground}</p>
+                </li>
+              )
+            })}
+          </ul>
+        ) : null}
+        <p className="fine-print">
+          <Link to="/announcements">Announcements</Link>
+          {' · '}
+          <Link to="/activities">Activities</Link>
+          {' · '}
+          <Link to="/schedules">Schedules</Link>
+          {' · '}
+          <Link to="/polls">Polls</Link>
+        </p>
+      </section>
       <section className="panel recent" aria-labelledby="recent-heading">
         <div className="section-heading">
           <p className="kicker">Yours</p>
