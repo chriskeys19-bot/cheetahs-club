@@ -147,6 +147,77 @@ export type PollTally = {
   votes: number
 }
 
+export const DUE_STATUSES = ['open', 'paid', 'waived', 'cancelled'] as const
+
+export type DueStatus = (typeof DUE_STATUSES)[number]
+
+export const CLAIM_STATUSES = ['confirmed', 'pending_claim'] as const
+
+export type ClaimStatus = (typeof CLAIM_STATUSES)[number]
+
+export type Expense = {
+  id: string
+  title: string
+  amount: number
+  currency: string
+  expense_date: string
+  category: string | null
+  notes: string | null
+  team_id: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+}
+
+export type DuesAssessment = {
+  id: string
+  title: string
+  description: string | null
+  amount: number
+  due_date: string
+  period_label: string
+  team_id: string | null
+  member_id: string
+  expense_id: string | null
+  status: DueStatus
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DuesPayment = {
+  id: string
+  assessment_id: string
+  amount: number
+  paid_at: string
+  method_note: string | null
+  recorded_by: string | null
+  claim_status: ClaimStatus
+  payer_user_id: string | null
+  notes: string | null
+  created_at: string
+}
+
+export type RosterMember = {
+  id: string
+  full_name: string | null
+  role: ClubRole
+}
+
+export type TeamMembership = {
+  team_id: string
+  profile_id: string
+}
+
+export function isDueStatus(value: unknown): value is DueStatus {
+  return value === 'open' || value === 'paid' || value === 'waived' || value === 'cancelled'
+}
+
+export function isClaimStatus(value: unknown): value is ClaimStatus {
+  return value === 'confirmed' || value === 'pending_claim'
+}
+
 export function displayName(profile: Profile | null, email: string | null | undefined): string {
   const name = profile?.full_name?.trim()
   if (name) return name

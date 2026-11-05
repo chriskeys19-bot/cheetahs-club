@@ -171,6 +171,8 @@ export function HomePage() {
           <Link to="/schedules">Schedules</Link>
           {' · '}
           <Link to="/polls">Polls</Link>
+          {' · '}
+          <Link to="/dues">Dues</Link>
         </p>
       </section>
     </div>
