@@ -38,6 +38,30 @@ export function canManageClub(role: ClubRole | null | undefined): boolean {
   return role === 'admin' || role === 'captain'
 }
 
+export const INVITE_STATUSES = ['pending', 'accepted', 'revoked', 'expired'] as const
+
+export type InviteStatus = (typeof INVITE_STATUSES)[number]
+
+export type ClubInvite = {
+  id: string
+  email: string
+  token: string
+  team_id: string | null
+  status: InviteStatus
+  expires_at: string
+  created_at: string
+}
+
+export function isInviteStatus(value: unknown): value is InviteStatus {
+  return value === 'pending' || value === 'accepted' || value === 'revoked' || value === 'expired'
+}
+
+export const JOIN_SITE = 'https://cheetahs-club.pages.dev'
+
+export function joinUrl(token: string): string {
+  return `${JOIN_SITE}/join/${token}`
+}
+
 export type Announcement = {
   id: string
   title: string

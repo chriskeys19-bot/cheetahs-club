@@ -1,0 +1,13 @@
+# Function gateway flags for the hosted club project.
+# preview-invite and accept-invite authenticate with the invite token.
+# The caller does not have an account yet, and a publishable key is not a
+# JWT, so the platform JWT check stays off. The handlers reject any request
+# that does not present a 32-byte token.
+
+project_id = "cheetahs-club"
+
+[functions.preview-invite]
+verify_jwt = false
+
+[functions.accept-invite]
+verify_jwt = false

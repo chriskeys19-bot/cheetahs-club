@@ -8,7 +8,15 @@ import { loadFeedback } from '../lib/feedback.ts'
 import { formatFixture } from '../lib/format.ts'
 import { loadSchedule } from '../lib/schedules.ts'
 import { loadTeams } from '../lib/teams.ts'
-import { displayName, roleLabel, type Announcement, type FeedbackRow, type ScheduleEvent, type Team } from '../lib/types.ts'
+import {
+  canManageClub,
+  displayName,
+  roleLabel,
+  type Announcement,
+  type FeedbackRow,
+  type ScheduleEvent,
+  type Team,
+} from '../lib/types.ts'
 
 export function HomePage() {
   const { session, profile, profileError } = useAuth()
@@ -76,6 +84,11 @@ export function HomePage() {
         <p className="kicker">Clubhouse</p>
         <h1>Welcome, {name}</h1>
         <p className="lede">{roleLine}</p>
+        {profile && canManageClub(profile.role) ? (
+          <p className="fine-print">
+            <Link to="/invites">Invite a player</Link>
+          </p>
+        ) : null}
       </header>
       <div className="home-grid">
         <FeedbackComposer onSubmitted={() => setListToken((value) => value + 1)} />
