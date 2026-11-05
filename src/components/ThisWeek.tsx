@@ -11,7 +11,6 @@ function sideName(teams: Team[], teamId: string | null): string | null {
 
 function scheduleHref(event: ScheduleEvent, teams: Team[]): string {
   if (event.event_type === 'practice' && event.team_id === null) return '/schedules?side=practice'
-  if (event.event_type === 'umpiring') return '/schedules?side=umpiring'
   const slug = teams.find((team) => team.id === event.team_id)?.slug
   if (slug === 'alpha' || slug === 'beta' || slug === 'gamma') return `/schedules?side=${slug}`
   if (event.event_type === 'practice') return '/schedules?side=practice'

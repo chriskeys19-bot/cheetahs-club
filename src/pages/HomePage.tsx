@@ -7,7 +7,7 @@ import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
 import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
-import { eventsInPacificWeek, eventTitle, loadSchedule } from '../lib/schedules.ts'
+import { eventsInPacificWeek, eventTitle, isCheetahsLeagueGame, loadSchedule } from '../lib/schedules.ts'
 import { loadSplitwiseHome, type SplitwiseHome } from '../lib/splitwise.ts'
 import { loadTeams } from '../lib/teams.ts'
 import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
@@ -73,8 +73,13 @@ export function HomePage() {
     }
   }, [profileReady, session, profile?.role])
 
-  const thisWeek = week ? eventsInPacificWeek(schedule, week.start, week.end) : []
-  const upcoming = schedule
+  const leagueGames = schedule.filter((event) => {
+    if (event.event_type !== 'league_game') return false
+    if (teams.length === 0) return true
+    return isCheetahsLeagueGame(event, teams.find((team) => team.id === event.team_id)?.slug ?? null)
+  })
+  const thisWeek = week ? eventsInPacificWeek(leagueGames, week.start, week.end) : []
+  const upcoming = leagueGames
     .filter((event) => asOf === null || new Date(event.starts_at).getTime() >= asOf)
     .slice(0, 3)
   const name = displayName(profile, session?.user.email)

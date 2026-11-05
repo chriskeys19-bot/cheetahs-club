@@ -237,7 +237,6 @@ export function FixtureForm({
           <label htmlFor={`${titleId}-type`}>Kind</label>
           <select id={`${titleId}-type`} name="eventType" value={eventType} onChange={(event) => onTypeChange(event.target.value)}>
             <option value="league_game">League game</option>
-            <option value="umpiring">Umpiring</option>
             <option value="practice">Practice</option>
             <option value="other">Other</option>
           </select>

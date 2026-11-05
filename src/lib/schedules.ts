@@ -29,6 +29,12 @@ export function eventTitle(
   return `${side ?? 'Club'} vs ${event.opponent}`
 }
 
+const CHEETAHS_SIDES = new Set(['alpha', 'beta', 'gamma'])
+
+export function isCheetahsLeagueGame(event: Pick<ScheduleEvent, 'event_type' | 'team_id'>, slug: string | null): boolean {
+  return event.event_type === 'league_game' && slug !== null && CHEETAHS_SIDES.has(slug)
+}
+
 export function eventsInPacificWeek(
   events: ScheduleEvent[],
   start: string,

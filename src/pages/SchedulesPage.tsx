@@ -5,22 +5,15 @@ import { FixtureForm } from '../components/FixtureForm.tsx'
 import { GameMeta } from '../components/GameMeta.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatFixture } from '../lib/format.ts'
-import { eventKindLabel, eventTitle, loadSchedule, removeFixture } from '../lib/schedules.ts'
+import { eventKindLabel, eventTitle, isCheetahsLeagueGame, loadSchedule, removeFixture } from '../lib/schedules.ts'
 import { loadMyTeamIds, loadTeams } from '../lib/teams.ts'
 import { canManageClub, type ScheduleEvent, type Team } from '../lib/types.ts'
 
-const SIDES = ['all', 'alpha', 'beta', 'gamma', 'umpiring', 'practice', 'mine'] as const
+const SIDES = ['all', 'alpha', 'beta', 'gamma', 'practice', 'mine'] as const
 type SideFilter = (typeof SIDES)[number]
 
 function parseSide(value: string | null): SideFilter {
-  if (
-    value === 'alpha' ||
-    value === 'beta' ||
-    value === 'gamma' ||
-    value === 'umpiring' ||
-    value === 'practice' ||
-    value === 'mine'
-  ) {
+  if (value === 'alpha' || value === 'beta' || value === 'gamma' || value === 'practice' || value === 'mine') {
     return value
   }
   return 'all'
@@ -93,11 +86,12 @@ export function SchedulesPage() {
   const visible = useMemo(() => {
     const events = rows ?? []
     return events.filter((event) => {
-      if (side === 'all') return true
-      if (side === 'umpiring') return event.event_type === 'umpiring'
       if (side === 'practice') return event.event_type === 'practice'
+      const slug = teamSlug(teams, event.team_id)
+      if (!isCheetahsLeagueGame(event, slug)) return false
+      if (side === 'all') return true
       if (side === 'mine') return event.team_id !== null && myTeamIds.includes(event.team_id)
-      return teamSlug(teams, event.team_id) === side
+      return slug === side
     })
   }, [rows, side, teams, myTeamIds])
 
@@ -130,14 +124,14 @@ export function SchedulesPage() {
     setToken((value) => value + 1)
   }
 
+  const leagueRows = (rows ?? []).filter((event) => isCheetahsLeagueGame(event, teamSlug(teams, event.team_id)))
   const counts = {
-    all: rows?.length ?? 0,
-    alpha: (rows ?? []).filter((event) => teamSlug(teams, event.team_id) === 'alpha').length,
-    beta: (rows ?? []).filter((event) => teamSlug(teams, event.team_id) === 'beta').length,
-    gamma: (rows ?? []).filter((event) => teamSlug(teams, event.team_id) === 'gamma').length,
-    umpiring: (rows ?? []).filter((event) => event.event_type === 'umpiring').length,
+    all: leagueRows.length,
+    alpha: leagueRows.filter((event) => teamSlug(teams, event.team_id) === 'alpha').length,
+    beta: leagueRows.filter((event) => teamSlug(teams, event.team_id) === 'beta').length,
+    gamma: leagueRows.filter((event) => teamSlug(teams, event.team_id) === 'gamma').length,
     practice: (rows ?? []).filter((event) => event.event_type === 'practice').length,
-    mine: (rows ?? []).filter((event) => event.team_id !== null && myTeamIds.includes(event.team_id)).length,
+    mine: leagueRows.filter((event) => event.team_id !== null && myTeamIds.includes(event.team_id)).length,
   }
 
   return (
@@ -146,9 +140,9 @@ export function SchedulesPage() {
         <p className="kicker">Winter 2026-27</p>
         <h1>Schedules</h1>
         <p className="lede">
-          League games, umpiring duties, and Cheetahs practice. Times are Pacific
-          (America/Los_Angeles). The club week on the home page is Monday through Sunday.
-          Availability stays on the club sheet.
+          Cheetahs Alpha, Beta, and Gamma league games from the winter sheet. Wednesday
+          practice is on its own filter. Times are Pacific (America/Los_Angeles). The club
+          week on the home page is Monday through Sunday. Availability stays on the club sheet.
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
@@ -177,12 +171,6 @@ export function SchedulesPage() {
         <FilterChip label="Beta" count={counts.beta} pressed={side === 'beta'} onClick={() => selectSide('beta')} />
         <FilterChip label="Gamma" count={counts.gamma} pressed={side === 'gamma'} onClick={() => selectSide('gamma')} />
         <FilterChip
-          label="Umpiring"
-          count={counts.umpiring}
-          pressed={side === 'umpiring'}
-          onClick={() => selectSide('umpiring')}
-        />
-        <FilterChip
           label="Practice"
           count={counts.practice}
           pressed={side === 'practice'}
@@ -199,13 +187,15 @@ export function SchedulesPage() {
             {side === 'all' ? 'Full winter list' : side === 'practice' ? 'Wednesday practice' : 'Filtered list'}
           </h2>
         </div>
-        {rows === null && !error ? <p className="empty-copy">Loading the schedule…</p> : null}
+        {(rows === null || (teams.length === 0 && side !== 'practice')) && !error ? (
+          <p className="empty-copy">Loading the schedule…</p>
+        ) : null}
         {error ? (
           <p className="banner banner-error" role="alert">
             {error}
           </p>
         ) : null}
-        {rows && visible.length === 0 && !error ? (
+        {rows && (side === 'practice' || teams.length > 0) && visible.length === 0 && !error ? (
           <p className="empty-copy">
             {side === 'mine'
               ? 'You are not on a side yet, or that side has no events.'
