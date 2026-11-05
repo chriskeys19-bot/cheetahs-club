@@ -205,7 +205,7 @@ export function SchedulesPage() {
           </p>
         ) : null}
         {visible.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {visible.map((row) => {
               const when = formatFixture(row.game_date, row.start_time, row.end_time)
               const played = asOf !== null && new Date(row.starts_at).getTime() < asOf

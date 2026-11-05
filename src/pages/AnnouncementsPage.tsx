@@ -73,6 +73,7 @@ export function AnnouncementsPage() {
       <RoleNote ready={profileReady} restricted={!staff}>
         Captains and admins post announcements. Every member can read them.
       </RoleNote>
+      <div className="desk-split">
       {staff ? (
         <AnnouncementForm key={editing?.id ?? 'new'} initial={editing} onSaved={refresh} onCancel={() => setEditing(null)} />
       ) : null}
@@ -91,7 +92,7 @@ export function AnnouncementsPage() {
           <p className="empty-copy">No announcements yet.</p>
         ) : null}
         {rows && rows.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {rows.map((row) => (
               <li key={row.id} className="info-card">
                 <div className="tag-row">
@@ -128,6 +129,7 @@ export function AnnouncementsPage() {
           </ul>
         ) : null}
       </section>
+      </div>
     </div>
   )
 }

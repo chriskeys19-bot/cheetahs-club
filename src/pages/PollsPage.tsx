@@ -198,7 +198,7 @@ function PollSection({
         <p className="kicker">Ballots</p>
         <h2 id={headingId}>{heading}</h2>
       </div>
-      <ul className="card-list">
+      <ul className="card-list tiles">
         {polls.map((poll) => {
           const choicesForPoll = options.get(poll.id) ?? []
           const total = choicesForPoll.reduce((sum, option) => sum + (counts.get(option.id) ?? 0), 0)

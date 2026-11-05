@@ -35,7 +35,7 @@ export function ThisWeek({
   asOf: number | null
 }) {
   return (
-    <section className="panel" aria-labelledby="week-heading">
+    <section className="panel week-panel" aria-labelledby="week-heading">
       <div className="section-heading">
         <p className="kicker">This week</p>
         <h2 id="week-heading">What&apos;s happening this week</h2>
@@ -54,7 +54,7 @@ export function ThisWeek({
         <p className="empty-copy">Nothing on the Cheetahs schedule this week.</p>
       ) : null}
       {events.length > 0 ? (
-        <ul className="card-list">
+        <ul className="card-list tiles">
           {events.map((event) => {
             const when = formatFixture(event.game_date, event.start_time, event.end_time)
             const side = sideName(teams, event.team_id)

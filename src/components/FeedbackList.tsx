@@ -21,7 +21,7 @@ export function FeedbackList({
   }
 
   return (
-    <ol className="feedback-list">
+    <ol className={showSubmitter ? 'feedback-list inbox' : 'feedback-list'}>
       {rows.map((row) => {
         const parsed = splitFeedbackBody(row.body)
         return (

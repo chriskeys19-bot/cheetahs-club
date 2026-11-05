@@ -88,6 +88,7 @@ export function ActivitiesPage() {
       <RoleNote ready={profileReady} restricted={!staff}>
         Captains and admins add activities. Recurring adds one row per date. Every member can read the feed.
       </RoleNote>
+      <div className="desk-split">
       {staff ? (
         <ActivityForm
           key={editing?.id ?? 'new'}
@@ -97,6 +98,7 @@ export function ActivitiesPage() {
           onCancel={() => setEditing(null)}
         />
       ) : null}
+      <div className="desk-main">
       <div className="filter-bar" role="group" aria-label="Activity range">
         <button type="button" className="filter-chip" aria-pressed={showPast} onClick={() => setShowPast((value) => !value)}>
           {showPast ? 'Hide recent past' : 'Show recent past'}
@@ -117,7 +119,7 @@ export function ActivitiesPage() {
           <p className="empty-copy">Nothing on the calendar yet.</p>
         ) : null}
         {upcoming && upcoming.length > 0 ? (
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {upcoming.map((row) => (
               <ActivityCard
                 key={row.id}
@@ -132,6 +134,8 @@ export function ActivitiesPage() {
           </ul>
         ) : null}
       </section>
+      </div>
+      </div>
       {showPast ? (
         <section className="panel" aria-labelledby="past-heading">
           <div className="section-heading">
@@ -140,7 +144,7 @@ export function ActivitiesPage() {
           </div>
           {past.length === 0 ? <p className="empty-copy">No recent activities.</p> : null}
           {past.length > 0 ? (
-            <ul className="card-list">
+            <ul className="card-list tiles">
               {past.map((row) => (
                 <ActivityCard
                   key={row.id}

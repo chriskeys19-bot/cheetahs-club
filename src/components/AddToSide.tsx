@@ -192,7 +192,7 @@ export function AddToSide({ teams, suggestedEmail }: { teams: Team[]; suggestedE
             <p className="kicker">Roster</p>
             <h2>Who is on which side</h2>
           </div>
-          <ul className="card-list">
+          <ul className="card-list tiles">
             {rows.map((row) => {
               const name = memberLabel(row)
               const sides = teams.filter((team) => row.team_ids.includes(team.id))

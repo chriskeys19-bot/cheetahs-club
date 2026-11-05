@@ -119,7 +119,7 @@ export function MembersPage() {
             ) : null}
             {rows && !error && rows.length === 0 ? <p className="empty-copy">No members yet.</p> : null}
             {rows && !error && rows.length > 0 ? (
-              <ul className="card-list">
+              <ul className="card-list member-list">
                 {rows.map((member) => {
                   const name = displayName(
                     { id: member.id, full_name: member.full_name, role: member.role },
