@@ -99,6 +99,15 @@ export function isLeagueCompleted(
 export function parseScorecardUrl(value: string): string | null | 'invalid' {
   const trimmed = value.trim()
   if (trimmed.length === 0) return null
-  if (trimmed.length > 500 || !/^https?:\/\/\S+$/i.test(trimmed)) return 'invalid'
+  if (trimmed.length > 500) return 'invalid'
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return 'invalid'
+  }
+  const host = url.hostname.toLowerCase()
+  const cricclubs = host === 'cricclubs.com' || host.endsWith('.cricclubs.com')
+  if (url.protocol !== 'https:' || !cricclubs) return 'invalid'
   return trimmed
 }

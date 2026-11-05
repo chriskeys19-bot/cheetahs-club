@@ -162,7 +162,7 @@ export function FixtureForm({
       }
       const parsedScorecard = parseScorecardUrl(scorecard)
       if (parsedScorecard === 'invalid') {
-        setError('Scorecard links need to start with http:// or https://.')
+        setError('Paste a public https://cricclubs.com scorecard link.')
         return
       }
       nextScorecard = parsedScorecard
@@ -395,7 +395,7 @@ export function FixtureForm({
             </select>
           </div>
           <div>
-            <label htmlFor={`${titleId}-scorecard`}>Scorecard link</label>
+            <label htmlFor={`${titleId}-scorecard`}>CricClubs scorecard</label>
             <input
               id={`${titleId}-scorecard`}
               name="scorecard"
@@ -404,7 +404,7 @@ export function FixtureForm({
               value={scorecard}
               onChange={(event) => setScorecard(event.target.value)}
               maxLength={500}
-              placeholder="https://"
+              placeholder="https://cricclubs.com/NCCA/results/..."
             />
           </div>
         </div>
@@ -413,6 +413,7 @@ export function FixtureForm({
         <p className="fine-print">
           Alpha and Beta default to a white ball and Cheetahs colors. Gamma defaults to a pink ball and whites.
           Leave ball and dress on Team default unless this game is different. A past start counts as completed.
+          Paste the public CricClubs scorecard used for the stream. YouTube links are not stored.
         </p>
       ) : null}
       <label htmlFor={`${titleId}-ground`}>Ground</label>
