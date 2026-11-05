@@ -7,7 +7,7 @@ Feedback is stored in Supabase. The browser does not call Google Sheets. See [do
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/join/:token`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`)
+- React Router (`/login`, `/join/:token`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -45,6 +45,8 @@ Accounts are email and password. There is no public sign-up on `/login`. The app
 
 Captains and admins invite players from **Invites**. Creating an invite stores a single-use token and shows `https://cheetahs-club.pages.dev/join/<token>` to copy. The app does not send that email yet. A later mailer (Resend or SMTP) can send the same URL; do not block the invite on club Gmail. The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`.
 
+Admins open **Admin → Members** to see each member's name, email, and role (`player`, `captain`, or `admin`). They can switch a member between player and captain. An admin cannot change their own role, and the last admin cannot be removed. Captains and players cannot change roles. Captains still invite players from **Invites**.
+
 The same two variables power announcements, activities, schedules, and polls. Do not add a service role key or a Google Sheets credential to the Vite env. Schedule rows are seeded in Postgres; the browser only reads and writes Supabase.
 
 ## Production build
@@ -70,7 +72,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, and `/admin` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -96,3 +98,5 @@ Wednesday Cheetahs practice is seeded from the next Wednesday after 2026-11-05 (
 supabase functions deploy preview-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy accept-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 ```
+
+Admins list members with `public.list_club_members()` and change a role with `public.set_member_role(target_id, new_role)`. Both are security-invoker wrappers. The privileged work runs in `private`, and only an admin can call it successfully. `authenticated` cannot update `profiles.role` directly. Trigger `profiles_guard_role` rejects a role change from anyone except an admin changing someone else, and it rejects removing the last admin. Signup and invite acceptance still store `player`.
