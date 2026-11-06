@@ -21,7 +21,7 @@ function loginMessage(message: string): string {
 }
 
 export function LoginPage() {
-  const { session, authReady, signIn } = useAuth()
+  const { session, authReady, signIn, passwordRecovery } = useAuth()
   const location = useLocation()
   const state = location.state as { from?: unknown; joined?: unknown; email?: unknown } | null
   const joined = state?.joined === true
@@ -32,6 +32,7 @@ export function LoginPage() {
 
   if (!authReady) return <Splash label="Opening the clubhouse…" />
   if (session) {
+    if (passwordRecovery) return <Navigate to="/reset-password" replace />
     const state = location.state as { from?: unknown } | null
     return <Navigate to={safeNext(state?.from)} replace />
   }

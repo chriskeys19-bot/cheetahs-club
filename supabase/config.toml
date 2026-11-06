@@ -19,6 +19,14 @@ verify_jwt = false
 [functions.send-invite-email]
 verify_jwt = true
 
+# admin-reset-password is only for a signed-in admin.
+# The gateway requires a user JWT. The function then reads profiles.role
+# for that user. The View-as switcher is not sent and is not trusted.
+# After the role check, the service role creates a recovery link.
+
+[functions.admin-reset-password]
+verify_jwt = true
+
 # sync-splitwise checks a captain/admin JWT itself, and also accepts the
 # x-splitwise-cron secret for pg_cron. The platform JWT check stays off so
 # the cron call is not rejected before the handler runs. The handler rejects

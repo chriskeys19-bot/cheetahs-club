@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AuthContext, type AuthValue } from './auth-context.ts'
 import { canSwitchRole, readStoredViewRole, writeStoredViewRole } from '../lib/roleView.ts'
-import { supabase } from '../lib/supabase.ts'
+import { clearRecoveryMarker, recoverySessionApplied, supabase } from '../lib/supabase.ts'
 import { isClubRole, type ClubRole, type Profile } from '../lib/types.ts'
 import type { Session } from '@supabase/supabase-js'
 
@@ -23,14 +23,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error: string | null
   } | null>(null)
   const [viewChoice, setViewChoice] = useState<ClubRole | null>(() => readStoredViewRole())
+  const [recoveryEvent, setRecoveryEvent] = useState(false)
 
   useEffect(() => {
     if (!client) return
 
     let cancelled = false
 
-    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => {
+    const { data: subscription } = client.auth.onAuthStateChange((event, next) => {
       if (cancelled) return
+      if (event === 'PASSWORD_RECOVERY') setRecoveryEvent(true)
+      if (event === 'SIGNED_OUT') {
+        setRecoveryEvent(false)
+        clearRecoveryMarker()
+      }
       setSession(next)
       setAuthReady(true)
     })
@@ -78,6 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const allowed = canSwitchRole(session?.user.email)
   const viewRole =
     allowed && accountProfile && viewChoice && viewChoice !== accountProfile.role ? viewChoice : null
+  // A missed PASSWORD_RECOVERY event still counts when this session's access
+  // token is the one from the recovery redirect. The check is idempotent.
+  const passwordRecovery = session !== null && (recoveryEvent || recoverySessionApplied(session.access_token))
   const profile = useMemo(() => {
     if (!accountProfile) return null
     if (!viewRole) return accountProfile
@@ -95,6 +104,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [client],
   )
+
+  const acknowledgeRecovery = useCallback(() => {
+    setRecoveryEvent(false)
+    clearRecoveryMarker()
+  }, [])
 
   const signOut = useCallback(async () => {
     if (!client) return
@@ -123,6 +137,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canSwitchRole: allowed && accountProfile !== null,
       viewRole,
       setViewRole,
+      passwordRecovery,
+      acknowledgeRecovery,
       signIn,
       signOut,
     }),
@@ -136,6 +152,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       allowed,
       viewRole,
       setViewRole,
+      passwordRecovery,
+      acknowledgeRecovery,
       signIn,
       signOut,
     ],

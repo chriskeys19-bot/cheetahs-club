@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { AdminNav } from '../components/AdminNav.tsx'
+import { SearchField } from '../components/SearchField.tsx'
+import { ResetPasswordDialog, type ResetMember } from '../components/ResetPasswordDialog.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { compareMembers, loadMembers, setMemberRole } from '../lib/members.ts'
+import { filterByQuery } from '../lib/search.ts'
 import {
   displayName,
   isAssignableRole,
@@ -22,6 +25,7 @@ function roleTagClass(role: ClubRole): string {
 
 export function MembersPage() {
   const { session, profile, profileReady, profileError } = useAuth()
+  const searchId = useId()
   const isAdmin = profile?.role === 'admin'
   const actorId = session?.user.id ?? null
   const [rows, setRows] = useState<ClubMember[] | null>(null)
@@ -30,6 +34,9 @@ export function MembersPage() {
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+  const [query, setQuery] = useState('')
+  const [resetTarget, setResetTarget] = useState<ResetMember | null>(null)
+  const [toast, setToast] = useState<{ id: number; tone: 'success' | 'error'; message: string } | null>(null)
 
   useEffect(() => {
     if (!isAdmin) return
@@ -48,6 +55,14 @@ export function MembersPage() {
       cancelled = true
     }
   }, [isAdmin])
+
+  useEffect(() => {
+    if (!toast) return
+    const timer = window.setTimeout(() => {
+      setToast((current) => (current?.id === toast.id ? null : current))
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [toast])
 
   async function onSave(member: ClubMember) {
     if (!actorId || !isAssignableRole(member.role)) return
@@ -77,6 +92,12 @@ export function MembersPage() {
     setSavedId(member.id)
   }
 
+  const visible = filterByQuery(rows ?? [], query, (member) => [
+    member.full_name,
+    member.email,
+    displayName({ id: member.id, full_name: member.full_name, role: member.role }, member.email),
+  ])
+
   return (
     <div className="page">
       <header className="page-intro">
@@ -84,7 +105,7 @@ export function MembersPage() {
         <h1>Members</h1>
         <p className="lede">
           Everyone with a Cheetahs account. Join links still create players. An admin can switch a
-          player to captain, or a captain back to player.
+          player to captain, or a captain back to player, and can send a password reset.
         </p>
       </header>
       {isAdmin ? <AdminNav /> : null}
@@ -111,6 +132,15 @@ export function MembersPage() {
               <Link to="/invites">Invites</Link> still add players, and they place an existing member on
               another side.
             </p>
+            {rows && !error && rows.length > 0 ? (
+              <SearchField
+                id={searchId}
+                label="Search members"
+                value={query}
+                onChange={setQuery}
+                placeholder="Name or email"
+              />
+            ) : null}
             {rows === null && !error ? <p className="empty-copy">Loading members…</p> : null}
             {error ? (
               <p className="banner banner-error" role="alert">
@@ -118,9 +148,12 @@ export function MembersPage() {
               </p>
             ) : null}
             {rows && !error && rows.length === 0 ? <p className="empty-copy">No members yet.</p> : null}
-            {rows && !error && rows.length > 0 ? (
+            {rows && !error && rows.length > 0 && visible.length === 0 ? (
+              <p className="empty-copy">No matches.</p>
+            ) : null}
+            {rows && !error && visible.length > 0 ? (
               <ul className="card-list member-list">
-                {rows.map((member) => {
+                {visible.map((member) => {
                   const name = displayName(
                     { id: member.id, full_name: member.full_name, role: member.role },
                     member.email,
@@ -188,6 +221,23 @@ export function MembersPage() {
                           {rowError.message}
                         </p>
                       ) : null}
+                      {member.email ? (
+                        <div className="card-actions">
+                          <button
+                            type="button"
+                            className="button-quiet"
+                            onClick={() =>
+                              setResetTarget({
+                                id: member.id,
+                                name,
+                                email: member.email ?? '',
+                              })
+                            }
+                          >
+                            Reset password
+                          </button>
+                        </div>
+                      ) : null}
                     </li>
                   )
                 })}
@@ -196,6 +246,27 @@ export function MembersPage() {
           </div>
         ) : null}
       </section>
+      {resetTarget ? (
+        <ResetPasswordDialog
+          key={resetTarget.id}
+          member={resetTarget}
+          onClose={() => setResetTarget(null)}
+          onToast={(next) => setToast({ ...next, id: Date.now() })}
+        />
+      ) : null}
+      {toast ? (
+        <div className="toast-stack">
+          <p
+            className={toast.tone === 'success' ? 'toast toast-success' : 'toast toast-error'}
+            role={toast.tone === 'error' ? 'alert' : 'status'}
+          >
+            <span>{toast.message}</span>
+            <button type="button" className="toast-dismiss" onClick={() => setToast(null)}>
+              Dismiss
+            </button>
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }

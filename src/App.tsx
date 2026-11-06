@@ -1,5 +1,6 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider.tsx'
+import { useAuth } from './auth/useAuth.ts'
 import { RequireAuth } from './components/RequireAuth.tsx'
 import { Shell } from './components/Shell.tsx'
 import { supabase } from './lib/supabase.ts'
@@ -13,9 +14,18 @@ import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
+import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx'
 import { PollsPage } from './pages/PollsPage.tsx'
 import { SchedulesPage } from './pages/SchedulesPage.tsx'
 import { SetupNotice } from './pages/SetupNotice.tsx'
+
+function SendRecoveryToReset() {
+  const { authReady, passwordRecovery } = useAuth()
+  const location = useLocation()
+  if (!authReady || !passwordRecovery) return null
+  if (location.pathname === '/reset-password' || location.pathname === '/login') return null
+  return <Navigate to="/reset-password" replace />
+}
 
 export default function App() {
   if (!supabase) return <SetupNotice />
@@ -23,9 +33,11 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <SendRecoveryToReset />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<Shell />}>
               <Route path="/" element={<HomePage />} />
