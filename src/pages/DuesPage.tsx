@@ -25,7 +25,7 @@ import {
   tallyPayments,
 } from '../lib/money.ts'
 import { emptySnapshot, loadSplitwiseSnapshot, syncSplitwise, type SplitwiseSnapshot } from '../lib/splitwise.ts'
-import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
+import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
   canManageClub,
   type ClaimStatus,
@@ -80,7 +80,7 @@ export function DuesPage() {
   const autoTried = useRef(false)
   const activeView: DuesView = staff ? view : 'mine'
   const today = pacificDateInput()
-  const venmoUsername = resolveVenmoUsername(snapshot.meta)
+  const venmoUsername = venmoPayHandle(snapshot.meta)
 
   useEffect(() => {
     if (!profileReady || !userId) return
@@ -186,8 +186,12 @@ export function DuesPage() {
         <h1>Dues</h1>
         <p className="lede">
           {staff
-            ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
-            : 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'}
+            ? venmoUsername
+              ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
+              : 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Log new costs in Splitwise. The local expenses and charges tabs do not.'
+            : venmoUsername
+              ? 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'
+              : 'What you owe is the balance copied from the club Splitwise group. A captain records payments in Splitwise. The app does not take the payment.'}
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
@@ -434,7 +438,7 @@ function PaymentNoteForm({
     }
     const method = methodNote.trim()
     if (method.length < 1 || method.length > 160) {
-      setError('Add how it was paid, up to 160 characters. Example: Venmo @cheetahs.')
+      setError('Add how it was paid, up to 160 characters. Example: cash at practice.')
       return
     }
     const detail = notes.trim()
@@ -464,7 +468,7 @@ function PaymentNoteForm({
         value={methodNote}
         onChange={(event) => setMethodNote(event.target.value)}
         maxLength={160}
-        placeholder="Venmo @cheetahs"
+        placeholder="Cash at practice"
         required
       />
       <label htmlFor={`${fieldId}-notes`}>Note</label>
@@ -571,7 +575,7 @@ function MyDues({
   openTotal: number
   staff: boolean
   userId: string | null
-  venmoUsername: string
+  venmoUsername: string | null
   payingId: string | null
   pendingId: string | null
   onPayStart: (id: string) => void
@@ -633,11 +637,13 @@ function MyDues({
                 />
                 {row.status === 'open' && unclaimed > 0 && payingId !== row.id ? (
                   <div className="card-actions">
-                    <VenmoPayLink
-                      username={venmoUsername}
-                      amountCents={unclaimed}
-                      note={duesVenmoNote(row.period_label)}
-                    />
+                    {venmoUsername ? (
+                      <VenmoPayLink
+                        username={venmoUsername}
+                        amountCents={unclaimed}
+                        note={duesVenmoNote(row.period_label)}
+                      />
+                    ) : null}
                     <button type="button" className="button button-quiet" onClick={() => onPayStart(row.id)}>
                       {staff ? 'Record payment' : 'I paid'}
                     </button>

@@ -18,6 +18,8 @@ import {
 
 const SPLITWISE_API = 'https://secure.splitwise.com/api/v3.0'
 const DEFAULT_ORIGIN = 'https://cheetahs-club.pages.dev'
+// Stored when VENMO_USERNAME is unset. The column cannot be blank.
+// The SPA treats this sentinel as "no handle" and does not render pay links for it.
 const VENMO_PLACEHOLDER = 'cheetahs'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
