@@ -35,6 +35,27 @@ export function isCheetahsLeagueGame(event: Pick<ScheduleEvent, 'event_type' | '
   return event.event_type === 'league_game' && slug !== null && CHEETAHS_SIDES.has(slug)
 }
 
+/** League game with match_status completed or a posted result. A past start alone does not qualify. */
+export function isCompletedLeagueListing(
+  event: Pick<ScheduleEvent, 'event_type' | 'team_id' | 'match_status' | 'result'>,
+  slug: string | null,
+): boolean {
+  if (!isCheetahsLeagueGame(event, slug)) return false
+  return event.match_status === 'completed' || event.result !== null
+}
+
+/** League game still to be played: no posted result, and the start is not in the past. */
+export function isUpcomingLeagueGame(
+  event: Pick<ScheduleEvent, 'event_type' | 'team_id' | 'match_status' | 'result' | 'starts_at'>,
+  slug: string | null,
+  asOf: number,
+): boolean {
+  if (!isCheetahsLeagueGame(event, slug)) return false
+  if (event.match_status === 'completed' || event.result !== null) return false
+  const start = new Date(event.starts_at).getTime()
+  return Number.isFinite(start) && start >= asOf
+}
+
 export function eventsInPacificWeek(
   events: ScheduleEvent[],
   start: string,

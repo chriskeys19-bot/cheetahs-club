@@ -16,7 +16,7 @@ const SAVED: Record<FeedbackCategory, string> = {
 }
 
 export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
-  const { session, profile } = useAuth()
+  const { session, profile, accountProfile } = useAuth()
   const bodyId = useId()
   const categoryName = useId()
   const statusRef = useRef<HTMLDivElement>(null)
@@ -50,7 +50,7 @@ export function FeedbackComposer({ onSubmitted }: { onSubmitted: () => void }) {
       userId: user.id,
       name: displayName(profile, user.email),
       email: user.email ?? null,
-      role: profile?.role ?? 'player',
+      role: accountProfile?.role ?? profile?.role ?? 'player',
       category,
       body: trimmed,
     })
