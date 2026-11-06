@@ -81,7 +81,8 @@ Set these environment variables on the Pages project **before** the build. Vite 
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
-- `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Fallback until the first Splitwise refresh. Placeholder when unset: `cheetahs`. Do not put Splitwise keys here.
+- `VITE_VENMO_ENABLED` — set to `true` to show Venmo pay buttons. Unset or any other value keeps Venmo hidden. Defaults to off.
+- `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Used only when Venmo is enabled, and only until the first Splitwise refresh stores a real `VENMO_USERNAME`. The old placeholder `cheetahs` is ignored. Do not put Splitwise keys here.
 
 `public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
 
@@ -102,11 +103,11 @@ Apply `supabase/migrations/20261106180000_splitwise_snapshot.sql` on project `lu
 | `SPLITWISE_API_KEY` | Personal API key from the treasurer's app at [secure.splitwise.com/apps](https://secure.splitwise.com/apps). Sent as `Authorization: Bearer`. Prefer this over OAuth. |
 | `SPLITWISE_GROUP_ID` | Numeric id from `https://secure.splitwise.com/groups/<id>`. Not `0` (that id is non-group expenses). |
 | `SPLITWISE_GROUP_NAME` | Optional exact group name if `SPLITWISE_GROUP_ID` is unset. The id wins when both are set. |
-| `VENMO_USERNAME` | Club Venmo handle, without `@`. Public. After a refresh, pay links use this. |
+| `VENMO_USERNAME` | Club Venmo handle, without `@`. Public. After a refresh, pay links use this when `VITE_VENMO_ENABLED=true`. The placeholder `cheetahs` is not a handle. |
 | `SPLITWISE_CRON_SECRET` | Optional. Long random string for the hourly job. Not the service role key. |
 | `SPLITWISE_CLIENT_ID`, `SPLITWISE_CLIENT_SECRET`, `SPLITWISE_REFRESH_TOKEN` | Optional OAuth refresh, used only when `SPLITWISE_API_KEY` is unset. |
 
-`VITE_VENMO_USERNAME` is the public fallback handle baked in at build time, before the first refresh. Default placeholder: `cheetahs`. Set the real handle before players pay. Pages build vars are only the two Supabase values plus this handle. Never add a Splitwise secret there.
+Venmo pay buttons stay hidden until a Pages build sets `VITE_VENMO_ENABLED=true` and a real handle is available. `VITE_VENMO_USERNAME` is the public fallback handle baked in at build time, before the first refresh. It is ignored when it is unset or still `cheetahs`. After a refresh, pay links use `VENMO_USERNAME` only when that secret is a real handle and Venmo is enabled. Pages build vars are the two Supabase values plus these Venmo settings. Never add a Splitwise secret there.
 
 ```bash
 supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke

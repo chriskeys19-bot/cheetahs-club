@@ -6,7 +6,9 @@ The in-app Expenses and Local charges tabs stay as a scratch pad. Saving there d
 
 ## What the app does after Venmo
 
-Venmo has no consumer API on this project. A pay link opens Venmo with the club handle, the amount, and a note such as `Cheetahs dues · Cheetahs`.
+Venmo pay links stay hidden until a build sets `VITE_VENMO_ENABLED=true` and a real club handle is configured. The old unset handle `cheetahs` is not used. While that is off, Dues still shows Splitwise balances and Refresh, with no pay button, pay link, or setup note.
+
+Venmo has no consumer API on this project. When it is enabled, a pay link opens Venmo with the club handle, the amount, and a note such as `Cheetahs dues · Cheetahs`.
 
 The app does not mark a Splitwise balance paid, and it does not offer "I paid" on that balance. Two ledgers for the same dollar would disagree until someone guessed which one was real.
 
@@ -41,13 +43,15 @@ Set these on project `lutcbvzunjcosncvdyke`. They are Edge Function secrets, not
 | `SPLITWISE_API_KEY` | Personal API key from [secure.splitwise.com/apps](https://secure.splitwise.com/apps). The function sends it as `Authorization: Bearer`. This is an access token for that Splitwise account. Treat it like a password. |
 | `SPLITWISE_GROUP_ID` | Group id. Preferred. |
 | `SPLITWISE_GROUP_NAME` | Exact group name, used only when the id is unset. |
-| `VENMO_USERNAME` | Club handle without `@`. Written into `splitwise_meta` on a successful refresh. Not a secret, but keep it next to the other settings so a rebuild is not required. |
+| `VENMO_USERNAME` | Club handle without `@`. Written into `splitwise_meta` on a successful refresh. Not a secret, but keep it next to the other settings so a rebuild is not required. Leave it unset until the club wants pay links. The stored sentinel `cheetahs` is not shown. |
 | `SPLITWISE_CRON_SECRET` | Optional shared secret for the scheduled job. Generate with `openssl rand -hex 32`. Do not reuse the service role key. |
 | `SPLITWISE_CLIENT_ID` | Optional. OAuth client id. Ignored when `SPLITWISE_API_KEY` is set. |
 | `SPLITWISE_CLIENT_SECRET` | Optional. OAuth client secret. |
 | `SPLITWISE_REFRESH_TOKEN` | Optional. OAuth refresh token for the treasurer. If Splitwise returns a new refresh token, the function logs that you should update this secret. It does not log the token. |
 
-`VITE_VENMO_USERNAME` is optional and public. Cloudflare Pages can set it at build time. Pay links use it only until the first successful refresh, or when `VENMO_USERNAME` was not set. If neither is set, the handle is the placeholder `cheetahs`. Change that before asking players to pay. Confirm the staff note on Dues.
+Pay links, Venmo buttons, and the staff "set up Venmo" note stay off unless the Pages build sets `VITE_VENMO_ENABLED=true`. Unset means off.
+
+`VITE_VENMO_USERNAME` is optional and public. Cloudflare Pages can set it at build time. When Venmo is enabled, pay links use it only until the first successful refresh that stored a real `VENMO_USERNAME`. The old placeholder `cheetahs` is not a handle. If neither a real secret nor a real build-time handle is set, the app shows no pay link and, while the flag is on, captains see a setup note on Dues. While the flag is off, that note is hidden too. Splitwise balances and Refresh do not depend on the flag.
 
 ```bash
 supabase secrets set \

@@ -6,7 +6,7 @@ import {
   type SplitwiseBalance,
   type SplitwiseSnapshot,
 } from '../lib/splitwise.ts'
-import { duesVenmoNote, resolveVenmoUsername, VENMO_PLACEHOLDER } from '../lib/venmo.ts'
+import { duesVenmoNote, resolveVenmoUsername, venmoFeatureEnabled, venmoPayHandle } from '../lib/venmo.ts'
 
 const PAY_NOTE =
   'Pay the club on Venmo. A captain then records that payment in the Splitwise group. This page does not mark the Splitwise balance paid, and Venmo does not tell the app when you finish.'
@@ -34,7 +34,8 @@ export function SplitwiseStaffSummary({
 }) {
   const status = snapshot.status
   const syncedAt = snapshot.meta?.syncedAt ?? null
-  const placeholder = status?.detail.venmoPlaceholder || resolveVenmoUsername(snapshot.meta) === VENMO_PLACEHOLDER
+  const venmoHandle = resolveVenmoUsername(snapshot.meta)
+  const showVenmoSetup = venmoFeatureEnabled() && !venmoHandle
   return (
     <section className="panel" aria-labelledby="splitwise-rollup-heading">
       <div className="section-heading">
@@ -65,10 +66,10 @@ export function SplitwiseStaffSummary({
         These totals are the Splitwise group. The in-app ledger below them is a scratch pad and does not change
         Splitwise.
       </p>
-      {placeholder ? (
+      {showVenmoSetup ? (
         <p className="banner banner-note">
-          Pay links use @{resolveVenmoUsername(snapshot.meta)}. Set the VENMO_USERNAME secret if that is not the club
-          account. The handle is public. The Splitwise key is not.
+          Venmo pay links are on, but no club handle is set. Set the VENMO_USERNAME secret to the real handle, then
+          refresh. The old placeholder is not used. The handle is public. The Splitwise key is not.
         </p>
       ) : null}
       {status?.detail.nonUsd.length ? (
@@ -116,7 +117,7 @@ export function SplitwiseMine({
   loading: boolean
   error: string | null
 }) {
-  const username = resolveVenmoUsername(snapshot.meta)
+  const username = venmoPayHandle(snapshot.meta)
   const mine = snapshot.balances.filter((row) => row.profileId === userId)
   const net = netBalance(mine)
   const owes = net < 0 ? -net : 0
@@ -159,16 +160,15 @@ export function SplitwiseMine({
             {snapshot.meta?.syncedAt ? `Copied ${formatPacific(snapshot.meta.syncedAt)}. ` : ''}
             A negative Splitwise balance is what you owe the group.
           </p>
-          {owes > 0 ? (
+          {owes > 0 && username ? (
             <>
               <p className="fine-print">{PAY_NOTE}</p>
               <div className="card-actions">
                 <VenmoPayLink username={username} amountCents={owes} note={note} />
               </div>
             </>
-          ) : (
-            <p className="fine-print">Nothing to pay the club from this balance.</p>
-          )}
+          ) : null}
+          {owes === 0 ? <p className="fine-print">Nothing to pay the club from this balance.</p> : null}
         </>
       ) : null}
       {recent.length > 0 ? (
@@ -203,6 +203,7 @@ export function SplitwiseMine({
 }
 
 export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot }) {
+  const payHandle = venmoPayHandle(snapshot.meta)
   const balances = [...snapshot.balances].sort(
     (a, b) => a.balanceCents - b.balanceCents || a.displayName.localeCompare(b.displayName),
   )
@@ -215,8 +216,9 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
           <h2 id="splitwise-balances-heading">Balances</h2>
         </div>
         <p className="fine-print">
-          Each row is that member&apos;s Splitwise balance. Negative means they owe the group. Record a Venmo payment in
-          Splitwise, then refresh. There is no &ldquo;I paid&rdquo; button on these rows.
+          Each row is that member&apos;s Splitwise balance. Negative means they owe the group.{' '}
+          {payHandle ? 'Record a Venmo payment in Splitwise, then refresh.' : 'Record a payment in Splitwise, then refresh.'}{' '}
+          There is no &ldquo;I paid&rdquo; button on these rows.
         </p>
         {balances.length === 0 ? <p className="empty-copy">No Splitwise members in the latest copy.</p> : null}
         {balances.length > 0 ? (
@@ -236,7 +238,7 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
                   {!row.profileId ? (
                     <p className="fine-print">This email does not match a Cheetahs sign-in. They will not see this row.</p>
                   ) : null}
-                  {owes > 0 ? (
+                  {owes > 0 && payHandle ? (
                     <p className="fine-print">They pay from My balance. Opening Venmo here would pay from your account.</p>
                   ) : null}
                 </li>
@@ -278,8 +280,10 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
           <h2 id="splitwise-debts-heading">Suggested payments</h2>
         </div>
         <p className="fine-print">
-          Splitwise&apos;s simplified USD debts. The Venmo button still pays the club handle for the member&apos;s net
-          balance, not a personal Venmo.
+          Splitwise&apos;s simplified USD debts.
+          {payHandle
+            ? " The Venmo button still pays the club handle for the member's net balance, not a personal Venmo."
+            : ''}
         </p>
         {snapshot.debts.length === 0 ? <p className="empty-copy">No simplified USD debts in this copy.</p> : null}
         {snapshot.debts.length > 0 ? (
