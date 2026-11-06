@@ -11,6 +11,7 @@ import { DuesPage } from './pages/DuesPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
+import { AuthCallbackPage } from './pages/AuthCallbackPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { PollsPage } from './pages/PollsPage.tsx'
@@ -25,6 +26,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<Shell />}>
