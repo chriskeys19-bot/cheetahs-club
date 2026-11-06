@@ -1402,6 +1402,195 @@ a.info-card:focus-visible {
   background: var(--color-accent);
 }
 
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+.confirm-dialog {
+  width: min(440px, 100%);
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-top: 4px solid var(--color-accent);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  display: grid;
+  gap: 12px;
+}
+
+.confirm-dialog:focus {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.confirm-dialog h2 {
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.confirm-actions .button {
+  flex: 1 1 120px;
+}
+
+.button-navy {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.button-navy:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 86%, var(--color-accent));
+}
+
+.rte {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rte-label {
+  margin-top: 8px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.rte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-accent));
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+
+.rte-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rte-button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-raised));
+  background: var(--color-surface-raised);
+  color: var(--color-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rte-button[aria-pressed='true'] {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.rte-button:hover:not([aria-pressed='true']) {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.rte-button:focus-visible,
+.rte .ProseMirror:focus {
+  outline: 3px solid color-mix(in srgb, var(--color-accent) 75%, var(--color-surface-raised));
+  outline-offset: 2px;
+}
+
+.rte .ProseMirror {
+  min-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-raised));
+  border-radius: 12px;
+  background: var(--color-surface-raised);
+  font-size: max(16px, 1rem);
+  overflow-wrap: anywhere;
+}
+
+.rte-compact .ProseMirror {
+  min-height: 76px;
+}
+
+.rte .ProseMirror p,
+.rich-text p {
+  margin: 0 0 0.45em;
+}
+
+.rte .ProseMirror p:last-child,
+.rich-text p:last-child {
+  margin-bottom: 0;
+}
+
+.rte .ProseMirror ul,
+.rte .ProseMirror ol,
+.rich-text ul,
+.rich-text ol {
+  margin: 0.2em 0 0.45em;
+  padding-left: 1.25em;
+}
+
+.rte .ProseMirror h2,
+.rich-text h2 {
+  margin: 0.1em 0 0.35em;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+.rte .ProseMirror [data-size='small'],
+.rich-text [data-size='small'] {
+  font-size: 0.875rem;
+}
+
+.rte .ProseMirror [data-size='large'],
+.rich-text [data-size='large'] {
+  font-size: 1.25rem;
+}
+
+.rich-text {
+  overflow-wrap: anywhere;
+}
+
+.rich-title {
+  font-family: var(--display);
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 0.95;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.rich-title p,
+.rich-title h2 {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+}
+
+.recurrence legend {
+  font-weight: 700;
+  color: var(--color-primary);
+  padding: 0 4px;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

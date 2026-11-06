@@ -16,5 +16,8 @@ export function actionError(message: string): string {
   if (lower.includes('not your vote') || lower.includes('option does not belong')) {
     return 'That vote could not be saved.'
   }
+  if (lower.includes('choice has votes')) {
+    return 'A choice that already has votes stays on the poll. Rename it instead of removing it.'
+  }
   return message
 }

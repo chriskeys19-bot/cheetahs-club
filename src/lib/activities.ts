@@ -1,4 +1,6 @@
 import { actionError } from './errors.ts'
+import { isoToPacificWall, pacificWallToIso } from './format.ts'
+import { addCivilDays, civilDayOffset } from './recurrence.ts'
 import { supabase } from './supabase.ts'
 import type { Activity } from './types.ts'
 
@@ -96,5 +98,86 @@ export async function saveActivitySeries(
 export async function removeActivity(id: string): Promise<string | null> {
   if (!supabase) return 'Supabase is not configured.'
   const { error } = await supabase.from('activities').delete().eq('id', id)
+  return error ? actionError(error.message) : null
+}
+
+async function loadActivitySeries(seriesId: string): Promise<{ rows: Activity[]; error: string | null }> {
+  if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
+  const { data, error } = await supabase
+    .from('activities')
+    .select(columns)
+    .eq('series_id', seriesId)
+    .order('starts_at', { ascending: true })
+  if (error) return { rows: [], error: error.message }
+  return { rows: parseActivities(data), error: null }
+}
+
+/**
+ * Apply one edited occurrence to every row that shares its series_id.
+ * Title, details, location, and side are copied. Each date keeps its place
+ * in the series and shifts by the same number of Pacific days, then uses the
+ * edited start time. A cleared end time clears the end on every date.
+ */
+export async function updateActivitySeries(input: {
+  seriesId: string
+  anchorStartsAt: string
+  title: string
+  description: string | null
+  starts_at: string
+  ends_at: string | null
+  location: string | null
+  team_id: string | null
+}): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const loaded = await loadActivitySeries(input.seriesId)
+  if (loaded.error) return loaded.error
+  if (loaded.rows.length === 0) return 'That series could not be found.'
+
+  const anchorWall = isoToPacificWall(input.anchorStartsAt)
+  const nextWall = isoToPacificWall(input.starts_at)
+  const dayDelta = anchorWall.date && nextWall.date ? civilDayOffset(anchorWall.date, nextWall.date) : null
+  if (dayDelta === null || !nextWall.time) return 'The start time could not be read.'
+
+  let endOffset: number | null = null
+  let endTime = ''
+  if (input.ends_at) {
+    const endWall = isoToPacificWall(input.ends_at)
+    endOffset = nextWall.date && endWall.date ? civilDayOffset(nextWall.date, endWall.date) : null
+    endTime = endWall.time
+    if (endOffset === null || !endTime) return 'The end time could not be read.'
+  }
+
+  for (const row of loaded.rows) {
+    const rowWall = isoToPacificWall(row.starts_at)
+    const shifted = rowWall.date ? addCivilDays(rowWall.date, dayDelta) : null
+    if (!shifted) return 'One of the series dates could not be moved.'
+    const startsAt = pacificWallToIso(shifted, nextWall.time)
+    if (!startsAt) return 'One of the series dates could not be saved.'
+    let endsAt: string | null = null
+    if (endOffset !== null) {
+      const endDay = addCivilDays(shifted, endOffset)
+      endsAt = endDay ? pacificWallToIso(endDay, endTime) : null
+      if (!endsAt) return 'One of the series end times could not be saved.'
+    }
+    if (endsAt && endsAt < startsAt) return 'The end has to be after the start on every date.'
+    const { error } = await supabase
+      .from('activities')
+      .update({
+        title: input.title,
+        description: input.description,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        location: input.location,
+        team_id: input.team_id,
+      })
+      .eq('id', row.id)
+    if (error) return actionError(error.message)
+  }
+  return null
+}
+
+export async function removeActivitySeries(seriesId: string): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const { error } = await supabase.from('activities').delete().eq('series_id', seriesId)
   return error ? actionError(error.message) : null
 }

@@ -193,3 +193,75 @@ export async function removePoll(id: string): Promise<string | null> {
   const { error } = await supabase.from('polls').delete().eq('id', id)
   return error ? actionError(error.message) : null
 }
+
+export async function updatePoll(input: {
+  id: string
+  question: string
+  description: string | null
+  closes_at: string | null
+  options: Array<{ id: string | null; label: string }>
+  votedOptionIds: string[]
+}): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const { data, error: loadError } = await supabase
+    .from('poll_options')
+    .select('id, poll_id, label, sort_order')
+    .eq('poll_id', input.id)
+  if (loadError) return actionError(loadError.message)
+  const existing = parseOptions(data)
+  const keptIds = new Set(
+    input.options.map((option) => option.id).filter((id): id is string => typeof id === 'string' && id.length > 0),
+  )
+  for (const id of keptIds) {
+    if (!existing.some((option) => option.id === id)) return 'A choice on this poll could not be found.'
+  }
+  const removed = existing.filter((option) => !keptIds.has(option.id))
+  const voted = new Set(input.votedOptionIds)
+  if (removed.some((option) => voted.has(option.id))) {
+    return 'A choice that already has votes stays on the poll. Rename it instead of removing it.'
+  }
+
+  const { error: pollError } = await supabase
+    .from('polls')
+    .update({
+      question: input.question.trim(),
+      description: input.description,
+      closes_at: input.closes_at,
+    })
+    .eq('id', input.id)
+  if (pollError) return actionError(pollError.message)
+
+  for (const option of input.options) {
+    if (!option.id) continue
+    const { error } = await supabase.from('poll_options').update({ label: `~${option.id}` }).eq('id', option.id)
+    if (error) return actionError(error.message)
+  }
+  for (const [index, option] of input.options.entries()) {
+    if (!option.id) continue
+    const { error } = await supabase
+      .from('poll_options')
+      .update({ label: option.label.trim(), sort_order: index })
+      .eq('id', option.id)
+    if (error) return actionError(error.message)
+  }
+
+  const fresh = input.options
+    .map((option, index) => ({ option, index }))
+    .filter((item) => !item.option.id)
+  if (fresh.length > 0) {
+    const { error } = await supabase.from('poll_options').insert(
+      fresh.map(({ option, index }) => ({
+        poll_id: input.id,
+        label: option.label.trim(),
+        sort_order: index,
+      })),
+    )
+    if (error) return actionError(error.message)
+  }
+
+  for (const option of removed) {
+    const { error } = await supabase.from('poll_options').delete().eq('id', option.id)
+    if (error) return actionError(error.message)
+  }
+  return null
+}

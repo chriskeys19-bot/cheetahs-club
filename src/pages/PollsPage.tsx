@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
+import { ConfirmDialog } from '../components/ConfirmDialog.tsx'
 import { PollForm } from '../components/PollForm.tsx'
+import { RichText } from '../components/RichText.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatPacific } from '../lib/format.ts'
+import { visibleText } from '../lib/richText.ts'
 import { castVote, loadPollBoard, pollIsOpen, removePoll, setPollStatus, type PollBoard } from '../lib/polls.ts'
-import { canManageClub, type Poll, type PollOption } from '../lib/types.ts'
+import { canEditItem, canManageClub, type Poll, type PollOption } from '../lib/types.ts'
 
 const emptyBoard: PollBoard = { polls: [], options: [], votes: new Map(), tallies: [] }
 
 export function PollsPage() {
   const { session, profile, profileReady } = useAuth()
   const staff = canManageClub(profile?.role)
+  const userId = session?.user.id ?? null
   const [board, setBoard] = useState<PollBoard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Poll | null>(null)
   const [choices, setChoices] = useState<Record<string, string>>({})
   const [asOf, setAsOf] = useState<number | null>(null)
 
@@ -37,9 +43,14 @@ export function PollsPage() {
   }, [session, token])
 
   function refresh() {
+    setEditingId(null)
     setBoard(null)
     setError(null)
     setToken((value) => value + 1)
+  }
+
+  function canEdit(poll: Poll) {
+    return canEditItem(profile?.role, userId, poll.created_by)
   }
 
   const grouped = useMemo(() => {
@@ -59,6 +70,8 @@ export function PollsPage() {
     }
     return { options, counts, open, closed }
   }, [board])
+
+  const editing = board?.polls.find((poll) => poll.id === editingId) ?? null
 
   async function onVote(poll: Poll) {
     const userId = session?.user.id
@@ -91,14 +104,15 @@ export function PollsPage() {
   }
 
   async function onRemove(poll: Poll) {
-    if (!window.confirm(`Remove “${poll.question}”? Votes go with it.`)) return
     setPendingId(poll.id)
     const message = await removePoll(poll.id)
     setPendingId(null)
+    setConfirming(null)
     if (message) {
       setError(message)
       return
     }
+    if (editingId === poll.id) setEditingId(null)
     refresh()
   }
 
@@ -110,9 +124,26 @@ export function PollsPage() {
         <p className="lede">One vote per member while a poll is open. Counts stay visible.</p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins open and close polls. Every member can vote.
+        Captains and admins open polls. You can edit or delete a poll you opened. Every member can vote.
       </RoleNote>
-      {staff ? <PollForm onCreated={refresh} /> : null}
+      {editing ? (
+        <PollForm
+          key={editing.id}
+          initial={editing}
+          initialOptions={grouped.options.get(editing.id) ?? []}
+          votedOptionIds={(grouped.options.get(editing.id) ?? [])
+            .filter((option) => (grouped.counts.get(option.id) ?? 0) > 0)
+            .map((option) => option.id)}
+          voteTotal={(grouped.options.get(editing.id) ?? []).reduce(
+            (sum, option) => sum + (grouped.counts.get(option.id) ?? 0),
+            0,
+          )}
+          onSaved={refresh}
+          onCancel={() => setEditingId(null)}
+        />
+      ) : staff ? (
+        <PollForm onSaved={refresh} />
+      ) : null}
       {board === null && !error ? <p className="empty-copy">Loading polls…</p> : null}
       {error ? (
         <p className="banner banner-error" role="alert">
@@ -133,12 +164,13 @@ export function PollsPage() {
           votes={board?.votes ?? emptyBoard.votes}
           choices={choices}
           asOf={asOf ?? 0}
-          staff={staff}
+          canRevise={canEdit}
           pendingId={pendingId}
           onChoose={(pollId, optionId) => setChoices((current) => ({ ...current, [pollId]: optionId }))}
           onVote={onVote}
           onStatus={onStatus}
-          onRemove={onRemove}
+          onEdit={(poll) => setEditingId(poll.id)}
+          onDelete={setConfirming}
         />
       ) : null}
       {grouped.closed.length > 0 ? (
@@ -150,12 +182,25 @@ export function PollsPage() {
           votes={board?.votes ?? emptyBoard.votes}
           choices={choices}
           asOf={asOf ?? 0}
-          staff={staff}
+          canRevise={canEdit}
           pendingId={pendingId}
           onChoose={(pollId, optionId) => setChoices((current) => ({ ...current, [pollId]: optionId }))}
           onVote={onVote}
           onStatus={onStatus}
-          onRemove={onRemove}
+          onEdit={(poll) => setEditingId(poll.id)}
+          onDelete={setConfirming}
+        />
+      ) : null}
+      {confirming ? (
+        <ConfirmDialog
+          title={`Delete “${visibleText(confirming.question)}”?`}
+          body="Votes and choices are removed with this poll."
+          confirmLabel="Delete"
+          busy={pendingId === confirming.id}
+          onCancel={() => {
+            if (pendingId !== confirming.id) setConfirming(null)
+          }}
+          onConfirm={() => onRemove(confirming)}
         />
       ) : null}
     </div>
@@ -170,12 +215,13 @@ function PollSection({
   votes,
   choices,
   asOf,
-  staff,
+  canRevise,
   pendingId,
   onChoose,
   onVote,
   onStatus,
-  onRemove,
+  onEdit,
+  onDelete,
 }: {
   heading: string
   polls: Poll[]
@@ -184,12 +230,13 @@ function PollSection({
   votes: Map<string, string>
   choices: Record<string, string>
   asOf: number
-  staff: boolean
+  canRevise: (poll: Poll) => boolean
   pendingId: string | null
   onChoose: (pollId: string, optionId: string) => void
   onVote: (poll: Poll) => void
   onStatus: (poll: Poll, status: 'open' | 'closed') => void
-  onRemove: (poll: Poll) => void
+  onEdit: (poll: Poll) => void
+  onDelete: (poll: Poll) => void
 }) {
   const headingId = `${heading.toLowerCase()}-polls`
   return (
@@ -207,14 +254,15 @@ function PollSection({
           const selected = choices[poll.id] ?? mine ?? ''
           const canReopen =
             poll.status === 'closed' && (!poll.closes_at || new Date(poll.closes_at).getTime() > asOf)
+          const manageable = canRevise(poll)
           return (
             <li key={poll.id} className="info-card">
               <div className="tag-row">
                 <span className={open ? 'tag tag-gold' : 'tag'}>{open ? 'Open' : 'Closed'}</span>
                 <span className="fine-print">{total} {total === 1 ? 'vote' : 'votes'}</span>
               </div>
-              <h3>{poll.question}</h3>
-              {poll.description ? <p className="feedback-body">{poll.description}</p> : null}
+              <RichText value={poll.question} as="h3" />
+              {poll.description ? <RichText value={poll.description} /> : null}
               {poll.closes_at ? <p className="fine-print">Closes {formatPacific(poll.closes_at)}</p> : null}
               <ul className="choice-list">
                 {choicesForPoll.map((option) => {
@@ -258,7 +306,17 @@ function PollSection({
                     {pendingId === poll.id ? 'Saving…' : mine ? 'Update vote' : 'Vote'}
                   </button>
                 ) : null}
-                {staff && open ? (
+                {manageable ? (
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    onClick={() => onEdit(poll)}
+                    disabled={pendingId === poll.id}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                {manageable && open ? (
                   <button
                     type="button"
                     className="button button-quiet"
@@ -268,7 +326,7 @@ function PollSection({
                     Close
                   </button>
                 ) : null}
-                {staff && canReopen ? (
+                {manageable && canReopen ? (
                   <button
                     type="button"
                     className="button button-quiet"
@@ -278,14 +336,14 @@ function PollSection({
                     Reopen
                   </button>
                 ) : null}
-                {staff ? (
+                {manageable ? (
                   <button
                     type="button"
                     className="button button-quiet"
-                    onClick={() => onRemove(poll)}
+                    onClick={() => onDelete(poll)}
                     disabled={pendingId === poll.id}
                   >
-                    Remove
+                    Delete
                   </button>
                 ) : null}
               </div>
