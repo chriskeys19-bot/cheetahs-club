@@ -2111,6 +2111,147 @@ textarea.note-field {
   }
 }
 
+.welcome-quote {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 22px 20px 18px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--crest-gold) 34%, transparent), transparent 18rem),
+    var(--crest-navy);
+  color: var(--crest-cream);
+  border: 1px solid color-mix(in srgb, var(--crest-gold) 62%, var(--crest-navy));
+  border-top: 4px solid var(--crest-gold);
+  box-shadow: var(--shadow);
+}
+
+.welcome-quote-kicker {
+  margin: 0;
+  color: var(--crest-gold);
+  font-family: var(--display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.welcome-quote h2 {
+  color: var(--crest-cream);
+  font-size: clamp(1.8rem, 4vw, 2.7rem);
+  overflow-wrap: anywhere;
+}
+
+.welcome-quote-body {
+  margin: 0;
+  max-width: 46rem;
+}
+
+.welcome-quote-text {
+  font-size: clamp(1.15rem, 2.2vw, 1.4rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.welcome-mark {
+  margin-right: 0.12em;
+  color: var(--crest-gold);
+  font-family: var(--display);
+  font-size: 2.5rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 0;
+}
+
+.welcome-quote-by {
+  margin-top: 12px;
+  color: var(--crest-gold);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.welcome-quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.welcome-quote-new,
+.welcome-quote-close {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.welcome-quote-new {
+  border: 0;
+  background: var(--crest-gold);
+  color: var(--crest-navy);
+}
+
+.welcome-quote-new:hover {
+  background: var(--color-button-bg-hover);
+}
+
+.welcome-quote-close {
+  border: 1px solid color-mix(in srgb, var(--crest-gold) 75%, var(--crest-cream));
+  background: transparent;
+  color: var(--crest-cream);
+}
+
+.welcome-quote-close:hover {
+  background: color-mix(in srgb, var(--crest-cream) 12%, transparent);
+}
+
+.welcome-quote :focus-visible {
+  outline: 3px solid var(--crest-cream);
+  outline-offset: 3px;
+}
+
+#home-heading:focus {
+  outline: none;
+}
+
+#home-heading:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 4px;
+}
+
+@media (max-width: 520px) {
+  .welcome-quote {
+    padding: 18px 16px 16px;
+  }
+
+  .welcome-quote-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .welcome-quote-new,
+  .welcome-quote-close {
+    width: 100%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-page > .welcome-quote,
+  .home-page > .page-intro {
+    grid-column: 1 / -1;
+  }
+
+  .home-main,
+  .home-aside {
+    grid-row: auto;
+  }
+}
+
 /* Google's light button. The G keeps Google's brand colors. The card around it stays cream, white, navy, and gold. */
 .button-google {
   display: inline-flex;

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider.tsx'
 import { useAuth } from './auth/useAuth.ts'
+import { QuoteLoginListener } from './components/QuoteLoginListener.tsx'
 import { RequireAuth } from './components/RequireAuth.tsx'
 import { Shell } from './components/Shell.tsx'
 import { supabase } from './lib/supabase.ts'
@@ -39,6 +40,7 @@ export default function App() {
 
   return (
     <AuthProvider>
+      <QuoteLoginListener />
       <BrowserRouter>
         <SendRecoveryToReset />
         <Routes>

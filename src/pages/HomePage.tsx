@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth.ts'
 import { GameMeta } from '../components/GameMeta.tsx'
 import { RichText } from '../components/RichText.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
+import { WelcomeQuote } from '../components/WelcomeQuote.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
 import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
@@ -95,9 +96,12 @@ export function HomePage() {
 
   return (
     <div className="page home-page">
+      <WelcomeQuote />
       <header className="page-intro">
         <p className="kicker">Clubhouse</p>
-        <h1>Welcome, {name}</h1>
+        <h1 id="home-heading" tabIndex={-1}>
+          Welcome, {name}
+        </h1>
         <p className="lede">{roleLine}</p>
         {profile && canManageClub(profile.role) ? (
           <p className="fine-print">
