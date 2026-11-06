@@ -15,6 +15,10 @@ export type AuthValue = {
   /** Set only while the allowlisted owner is previewing a different role. */
   viewRole: ClubRole | null
   setViewRole: (role: ClubRole | null) => void
+  /** This browser opened a recovery link and now holds that session. */
+  passwordRecovery: boolean
+  /** Call after the new password is saved so the clubhouse stays open. */
+  acknowledgeRecovery: () => void
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
   /** False while a Google-only session is still being checked against an invite. */

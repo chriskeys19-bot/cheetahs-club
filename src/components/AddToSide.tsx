@@ -1,4 +1,5 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
+import { MemberCombobox } from './MemberCombobox.tsx'
 import { teamName } from '../lib/invites.ts'
 import { addToSide, loadTeamRoster, removeFromSide } from '../lib/roster.ts'
 import { displayName, roleLabel, type RosterMember, type Team } from '../lib/types.ts'
@@ -109,8 +110,8 @@ export function AddToSide({ teams, suggestedEmail }: { teams: Team[]; suggestedE
         <h2 id="add-side-heading">Add to a side</h2>
       </div>
       <p className="lede">
-        Someone who already has an account can be placed on Alpha, Beta, or Gamma as well. This
-        does not send a join link and does not change their role.
+        Someone who already has an account can be placed on Alpha, Beta, or Gamma as well. Search
+        by name or email. This does not send a join link and does not change their role.
       </p>
       {suggestedEmail ? (
         <p className="banner banner-success" role="status">
@@ -129,20 +130,7 @@ export function AddToSide({ teams, suggestedEmail }: { teams: Team[]; suggestedE
       {rows && rows.length > 0 ? (
         <form className="composer" onSubmit={onAdd}>
           <label htmlFor={memberFieldId}>Member</label>
-          <select
-            id={memberFieldId}
-            name="member"
-            value={memberId}
-            onChange={(event) => chooseMember(event.target.value)}
-          >
-            <option value="">Choose a member</option>
-            {rows.map((row) => (
-              <option key={row.id} value={row.id}>
-                {memberLabel(row)}
-                {row.email ? ` · ${row.email}` : ''}
-              </option>
-            ))}
-          </select>
+          <MemberCombobox id={memberFieldId} members={rows} value={memberId} onChange={chooseMember} />
           <label htmlFor={teamFieldId}>Side</label>
           <select
             id={teamFieldId}
