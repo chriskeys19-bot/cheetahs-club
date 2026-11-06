@@ -25,6 +25,13 @@ import {
   tallyPayments,
 } from '../lib/money.ts'
 import { emptySnapshot, loadSplitwiseSnapshot, syncSplitwise, type SplitwiseSnapshot } from '../lib/splitwise.ts'
+import {
+  addAllSplitwiseMembers,
+  onSplitwiseEnsureSettled,
+  takeSplitwiseEnsureNotice,
+  type SplitwiseAddSummary,
+  type SplitwiseEnsureNotice,
+} from '../lib/splitwiseMembership.ts'
 import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
   canManageClub,
@@ -59,8 +66,9 @@ function sortMine(rows: DuesAssessment[]): DuesAssessment[] {
 }
 
 export function DuesPage() {
-  const { session, profile, profileReady, profileError } = useAuth()
+  const { session, profile, accountProfile, profileReady, profileError } = useAuth()
   const staff = canManageClub(profile?.role)
+  const isAdmin = accountProfile?.role === 'admin'
   const userId = session?.user.id ?? null
   const [view, setView] = useState<DuesView>('balances')
   const [desk, setDesk] = useState<DuesDesk | null>(null)
@@ -69,6 +77,9 @@ export function DuesPage() {
   const [snapshotReady, setSnapshotReady] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [addingMembers, setAddingMembers] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [addSummary, setAddSummary] = useState<SplitwiseAddSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [showArchived, setShowArchived] = useState(false)
@@ -78,6 +89,9 @@ export function DuesPage() {
   const running = useRef(false)
   const refreshLock = useRef(false)
   const autoTried = useRef(false)
+  const addLock = useRef(false)
+  const staffRef = useRef(staff)
+  const refreshSplitwiseRef = useRef<(force: boolean) => Promise<void>>(async () => {})
   const activeView: DuesView = staff ? view : 'mine'
   const today = pacificDateInput()
   const venmoUsername = venmoPayHandle(snapshot.meta)
@@ -134,6 +148,48 @@ export function DuesPage() {
       setRefreshing(false)
     }
   }
+
+  useEffect(() => {
+    staffRef.current = staff
+    refreshSplitwiseRef.current = refreshSplitwise
+  })
+
+  async function addAllMembers() {
+    if (!isAdmin || addLock.current) return
+    const confirmed = window.confirm(
+      'Add every club member who is not already recorded on the Splitwise group? Splitwise emails anyone who does not already have an account.',
+    )
+    if (!confirmed) return
+    addLock.current = true
+    setAddingMembers(true)
+    setAddError(null)
+    try {
+      const result = await addAllSplitwiseMembers()
+      if (result.error || !result.summary) {
+        setAddError(result.error ?? 'Could not add members to Splitwise.')
+        return
+      }
+      setAddSummary(result.summary)
+      if (result.summary.synced) refresh()
+      else if (result.summary.added > 0 || result.summary.alreadyMember > 0) await refreshSplitwise(true)
+    } finally {
+      addLock.current = false
+      setAddingMembers(false)
+    }
+  }
+
+  useEffect(() => {
+    function apply(notice: SplitwiseEnsureNotice) {
+      if (!notice.synced && staffRef.current) {
+        void refreshSplitwiseRef.current(false)
+        return
+      }
+      setToken((value) => value + 1)
+    }
+    const pending = takeSplitwiseEnsureNotice()
+    if (pending) apply(pending)
+    return onSplitwiseEnsureSettled(apply)
+  }, [])
 
   useEffect(() => {
     if (!staff || !snapshotReady || autoTried.current) return
@@ -239,6 +295,11 @@ export function DuesPage() {
           refreshing={refreshing}
           refreshError={refreshError}
           onRefresh={() => void refreshSplitwise(true)}
+          isAdmin={isAdmin}
+          addingMembers={addingMembers}
+          addError={addError}
+          addSummary={addSummary}
+          onAddAll={() => void addAllMembers()}
         />
       ) : null}
       {staff ? (

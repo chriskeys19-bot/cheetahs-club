@@ -8,6 +8,7 @@ import {
   writeOauthNotice,
 } from '../lib/googleAuth.ts'
 import { canSwitchRole, readStoredViewRole, writeStoredViewRole } from '../lib/roleView.ts'
+import { ensureSplitwiseMembership, resetSplitwiseEnsureOnSignOut } from '../lib/splitwiseMembership.ts'
 import { supabase } from '../lib/supabase.ts'
 import { isClubRole, type ClubRole, type Profile } from '../lib/types.ts'
 import type { Session } from '@supabase/supabase-js'
@@ -37,10 +38,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false
 
-    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => {
+    const { data: subscription } = client.auth.onAuthStateChange((event, next) => {
       if (cancelled) return
       setSession(next)
       setAuthReady(true)
+      if (event === 'SIGNED_OUT') {
+        resetSplitwiseEnsureOnSignOut()
+        return
+      }
+      if (!next) return
+      // Password, invite sign-in, and Google OAuth all land here. Defer the
+      // call so it does not run inside the auth callback, and never block login.
+      if (event === 'SIGNED_IN') ensureSplitwiseMembership(true)
+      else if (event === 'INITIAL_SESSION') ensureSplitwiseMembership(false)
     })
 
     client.auth.getSession().then(({ data }) => {
