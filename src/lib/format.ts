@@ -154,6 +154,28 @@ export function formatPacificDate(isoDate: string): string {
   }).format(stamp)
 }
 
+export function isoToPacificWall(iso: string | null): { date: string; time: string } {
+  if (!iso) return { date: '', time: '' }
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: PACIFIC,
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(date)
+  const map: Record<string, string> = {}
+  for (const part of parts) {
+    if (part.type !== 'literal') map[part.type] = part.value
+  }
+  const hour = map.hour === '24' ? '00' : map.hour
+  if (!map.year || !map.month || !map.day || !hour || !map.minute) return { date: '', time: '' }
+  return { date: `${map.year}-${map.month}-${map.day}`, time: `${hour}:${map.minute}` }
+}
+
 export function pacificWallToIso(date: string, time: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null
   const [year, month, day] = date.split('-').map(Number)

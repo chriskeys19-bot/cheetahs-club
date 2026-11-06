@@ -1,13 +1,13 @@
 # Cheetahs Cricket Club
 
-Clubhouse for Cheetahs Cricket Club. Members sign in with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.jpg` is the brand mark.
+Clubhouse for Cheetahs Cricket Club. Members sign in with Google or with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.jpg` is the brand mark.
 
 Feedback is stored in Supabase. The browser does not call Google Sheets. See [docs/feedback-sync.md](docs/feedback-sync.md) for the sheet columns a later sync should write.
 
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
+- React Router (`/login`, `/auth/callback`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -47,11 +47,13 @@ npm install
 npm run dev
 ```
 
-Accounts are email and password. There is no public sign-up on `/login`. The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`.
+Accounts are invite-only. `/login` has Continue with Google and the existing email and password form. There is no public sign-up. A Google account with no invite and no existing club profile sees **Ask your captain for an invite** and is not left signed in. A join link (`/join/:token`) can use Google or a password. The Google button keeps the invite token in `localStorage` and `sessionStorage` under `cheetahs.oauth.invite` until `/auth/callback` finishes. If that token is lost, a verified Google email that matches one pending invite still joins as a player on that side. Setup for Ben is in [docs/google-sign-in.md](docs/google-sign-in.md).
+
+The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`. Google name and picture are copied when they are present (`full_name` or `name`, and an https `avatar_url` or `picture`). Missing metadata does not block the profile row.
 
 `VITE_ROLE_SWITCH_EMAILS` is an optional comma-separated allowlist. When it is unset, only `chriskeys19@gmail.com` sees **View as: Admin | Captain | Player** in the header, and in the bottom menu on a phone. The choice is stored in `localStorage` under `cheetahs.role-view`. While it differs from the saved role, a banner says which role is on screen and **Reset** clears it. Nav items, staff panels, and buttons follow that view. Feedback still records the saved role. Postgres permissions do not change: a preview cannot do anything row level security would deny. On project `lutcbvzunjcosncvdyke` that email already has a `profiles` row with role `admin`. If a profile is missing, invite the address or, as an admin in the SQL editor, set `profiles.role` to `admin` for that user id. Do not create the account from the app.
 
-Captains and admins both open **Invites**. The nav link and the invite policies use the same staff check (`admin` or `captain`). Creating an invite stores a single-use token and emails `https://cheetahs-club.pages.dev/join/<token>` from `cheetahscc123@gmail.com` (display name Cheetahs Cricket Club). The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`. If the email does not send, the invite stays and the captain can still copy the link. An email that already has an account is rejected here. Use **Add to a side** on the same page instead of another join link.
+Captains and admins both open **Invites**. The nav link and the invite policies use the same staff check (`admin` or `captain`). Creating an invite stores a single-use token and emails `https://cheetahs-club.pages.dev/join/<token>` from `cheetahscc123@gmail.com` (display name Cheetahs Cricket Club). The recipient opens the link, then either continues with Google or enters a name and password. Password signup uses the `accept-invite` Edge Function. Google signup returns through `/auth/callback`, and `finish-google-signin` marks the same invite accepted, keeps `profiles.role` as `player`, and adds the invited side. `handle_new_user` still inserts the player row. The link cannot grant admin or captain. After a password signup they sign in on `/login`. Google leaves them in the clubhouse when the invite matches. If the email does not send, the invite stays and the captain can still copy the link. An email that already has an account is rejected here. Use **Add to a side** on the same page instead of another join link.
 
 **Add to a side** places someone who already signed in onto Alpha, Beta, or Gamma, including a player who is already on another side. The member control searches by name or email as you type and lists partial matches. Arrow keys, Enter, and a tap choose someone. Captains and admins can add or remove those memberships. Players cannot. The club role does not change.
 
@@ -84,7 +86,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_VENMO_ENABLED` — set to `true` to show Venmo pay buttons. Unset or any other value keeps Venmo hidden. Defaults to off.
 - `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Used only when Venmo is enabled, and only until the first Splitwise refresh stores a real `VENMO_USERNAME`. The old placeholder `cheetahs` is ignored. Do not put Splitwise keys here.
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/auth/callback`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -111,6 +113,7 @@ Venmo pay buttons stay hidden until a Pages build sets `VITE_VENMO_ENABLED=true`
 
 ```bash
 supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy splitwise-ensure-member --project-ref lutcbvzunjcosncvdyke
 supabase secrets set \
   SPLITWISE_API_KEY='the treasurer key' \
   SPLITWISE_GROUP_ID='12345678' \
@@ -119,7 +122,7 @@ supabase secrets set \
   --project-ref lutcbvzunjcosncvdyke
 ```
 
-The handler still requires a captain or admin JWT, or the `x-splitwise-cron` header. `--no-verify-jwt` only lets the cron request reach that check. Map members by using the same email in Splitwise and in the clubhouse. A captain opens Dues and refreshes. Players read only their mapped balance row.
+`sync-splitwise` still requires a captain or admin JWT, the cron header, or the service role. `--no-verify-jwt` only lets the cron request reach that check. `splitwise-ensure-member` keeps the gateway JWT check on. Do not pass `--no-verify-jwt` for it. Apply `supabase/migrations/20261107043000_splitwise_membership.sql` first. Sign-in adds the member's email to the group when it is missing. An admin can backfill from Dues. Players read only their mapped balance row.
 
 `public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity.
 
@@ -143,7 +146,10 @@ Scorecard links are public `https://cricclubs.com` URLs. Captains paste or edit 
 supabase functions deploy preview-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy accept-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy send-invite-email --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy finish-google-signin --project-ref lutcbvzunjcosncvdyke
 ```
+
+`finish-google-signin` keeps JWT verification on. Apply `supabase/migrations/20261106041946_google_oauth_profile.sql` before relying on the avatar column. Google Cloud and Supabase URL steps are in [docs/google-sign-in.md](docs/google-sign-in.md).
 
 `send-invite-email` keeps JWT verification on. Only a signed-in captain or admin can call it. It loads the pending invite with that user's row level security, then sends the join link. It does not take an email address or token from the browser.
 

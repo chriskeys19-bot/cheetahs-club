@@ -6,6 +6,7 @@ import {
   type SplitwiseBalance,
   type SplitwiseSnapshot,
 } from '../lib/splitwise.ts'
+import type { SplitwiseAddSummary } from '../lib/splitwiseMembership.ts'
 import { duesVenmoNote, resolveVenmoUsername, venmoFeatureEnabled, venmoPayHandle } from '../lib/venmo.ts'
 
 const PAY_NOTE =
@@ -21,16 +22,43 @@ function nameFor(balances: SplitwiseBalance[], id: number): string {
   return balances.find((row) => row.splitwiseUserId === id)?.displayName ?? 'Splitwise member'
 }
 
+function addSummaryText(summary: SplitwiseAddSummary): string {
+  const parts = [
+    `Added ${summary.added}.`,
+    `Already in the group ${summary.alreadyMember}.`,
+    `Already recorded ${summary.alreadyRecorded}.`,
+    `Failed ${summary.failed}.`,
+    `Skipped ${summary.skipped}.`,
+  ]
+  if (summary.rateLimited) parts.push('Splitwise rate limit stopped the run.')
+  if (summary.remaining > 0) parts.push(`${summary.remaining} were not tried.`)
+  if (summary.synced) parts.push('The balance copy was refreshed.')
+  else if (summary.added > 0 || summary.alreadyMember > 0) {
+    parts.push('The balance copy was not refreshed. Use Refresh from Splitwise.')
+  }
+  return parts.join(' ')
+}
+
 export function SplitwiseStaffSummary({
   snapshot,
   refreshing,
   refreshError,
   onRefresh,
+  isAdmin,
+  addingMembers,
+  addError,
+  addSummary,
+  onAddAll,
 }: {
   snapshot: SplitwiseSnapshot
   refreshing: boolean
   refreshError: string | null
   onRefresh: () => void
+  isAdmin: boolean
+  addingMembers: boolean
+  addError: string | null
+  addSummary: SplitwiseAddSummary | null
+  onAddAll: () => void
 }) {
   const status = snapshot.status
   const syncedAt = snapshot.meta?.syncedAt ?? null
@@ -87,10 +115,40 @@ export function SplitwiseStaffSummary({
           {refreshError}
         </p>
       ) : null}
+      {addSummary ? (
+        <div className="banner banner-note" role="status">
+          <p>{addSummaryText(addSummary)}</p>
+          {addSummary.failures.length > 0 ? (
+            <ul>
+              {addSummary.failures.map((failure) => (
+                <li key={failure.profileId}>
+                  {failure.displayName}
+                  {failure.email ? ` (${failure.email})` : ''}: {failure.error}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+      {addError ? (
+        <p className="banner banner-error" role="alert">
+          {addError}
+        </p>
+      ) : null}
       <div className="card-actions">
-        <button type="button" className="button button-gold" onClick={onRefresh} disabled={refreshing}>
+        <button type="button" className="button button-gold" onClick={onRefresh} disabled={refreshing || addingMembers}>
           {refreshing ? 'Refreshing…' : 'Refresh from Splitwise'}
         </button>
+        {isAdmin ? (
+          <button
+            type="button"
+            className="button button-quiet"
+            onClick={onAddAll}
+            disabled={addingMembers || refreshing}
+          >
+            {addingMembers ? 'Adding members…' : 'Add all members to Splitwise'}
+          </button>
+        ) : null}
         {snapshot.meta?.groupId ? (
           <a
             className="button button-quiet"
@@ -102,6 +160,12 @@ export function SplitwiseStaffSummary({
           </a>
         ) : null}
       </div>
+      {isAdmin ? (
+        <p className="fine-print">
+          Add all members invites any club sign-in email that is not already recorded. Splitwise emails an address
+          that does not have an account. It does not create expenses. Members already recorded are skipped.
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -147,8 +211,8 @@ export function SplitwiseMine({
       ) : null}
       {!loading && !error && snapshot.meta?.syncedAt && mine.length === 0 ? (
         <p>
-          The last refresh did not match your sign-in email to a Splitwise member. Use the same email in the Cheetahs
-          group, then ask a captain to refresh.
+          Your sign-in email is not on the latest Splitwise list. Signing in adds that email to the Cheetahs group
+          when Splitwise accepts it. This page reloads the balance after that succeeds.
         </p>
       ) : null}
       {!loading && !error && mine.length > 0 ? (
@@ -253,8 +317,8 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
           <h2 id="splitwise-gaps-heading">Club members not in the copy</h2>
         </div>
         <p className="fine-print">
-          Add them to the Splitwise group with the same email they use here. A dummy Splitwise user with no email
-          cannot be matched.
+          Add them to the Splitwise group with the same email they use here. An admin can add every missing club
+          email with Add all members to Splitwise. A dummy Splitwise user with no email cannot be matched.
         </p>
         {!snapshot.meta?.syncedAt ? <p className="empty-copy">Refresh to compare the roster with the group.</p> : null}
         {snapshot.meta?.syncedAt && unmatched.length === 0 ? (

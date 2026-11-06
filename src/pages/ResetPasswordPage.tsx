@@ -3,15 +3,30 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { Splash } from '../components/Splash.tsx'
 import { passwordProblem, passwordUpdateMessage, recoveryMessage, verifyRecoveryHash } from '../lib/passwordReset.ts'
-import { recoveryBoot, supabase } from '../lib/supabase.ts'
+import { establishRecoverySession, recoveryBoot, supabase } from '../lib/supabase.ts'
 
 const bootError = recoveryBoot.error ? recoveryMessage(recoveryBoot.error) : null
 
 export function ResetPasswordPage() {
   const { authReady, session, passwordRecovery } = useAuth()
   const [hashReady, setHashReady] = useState(recoveryBoot.tokenHash === null)
+  const [sessionReady, setSessionReady] = useState(!recoveryBoot.hadAccessToken)
   const [hashError, setHashError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+
+  useEffect(() => {
+    if (!recoveryBoot.hadAccessToken || !supabase) return
+    const client = supabase
+    let cancelled = false
+    establishRecoverySession(client).then((message) => {
+      if (cancelled) return
+      if (message) setHashError(recoveryMessage(message))
+      setSessionReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     const pending = verifyRecoveryHash()
@@ -33,7 +48,7 @@ export function ResetPasswordPage() {
     window.history.replaceState(window.history.state, '', '/reset-password')
   }, [authReady, hashReady])
 
-  if (!authReady || !hashReady) return <Splash label="Checking this reset link…" />
+  if (!authReady || !hashReady || !sessionReady) return <Splash label="Checking this reset link…" />
 
   const problem = bootError ?? hashError
   if (passwordRecovery && !problem && !showForm) setShowForm(true)

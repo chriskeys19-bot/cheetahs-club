@@ -12,6 +12,7 @@ import { DuesPage } from './pages/DuesPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
+import { AuthCallbackPage } from './pages/AuthCallbackPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx'
@@ -23,7 +24,13 @@ function SendRecoveryToReset() {
   const { authReady, passwordRecovery } = useAuth()
   const location = useLocation()
   if (!authReady || !passwordRecovery) return null
-  if (location.pathname === '/reset-password' || location.pathname === '/login') return null
+  if (
+    location.pathname === '/reset-password' ||
+    location.pathname === '/login' ||
+    location.pathname === '/auth/callback'
+  ) {
+    return null
+  }
   return <Navigate to="/reset-password" replace />
 }
 
@@ -36,6 +43,7 @@ export default function App() {
         <SendRecoveryToReset />
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<RequireAuth />}>

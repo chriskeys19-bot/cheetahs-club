@@ -38,6 +38,17 @@ export function canManageClub(role: ClubRole | null | undefined): boolean {
   return role === 'admin' || role === 'captain'
 }
 
+/** Staff can revise any row. A player can revise only a row they created. */
+export function canEditItem(
+  role: ClubRole | null | undefined,
+  userId: string | null | undefined,
+  createdBy: string | null | undefined,
+): boolean {
+  if (canManageClub(role)) return true
+  if (role !== 'player' || !userId || !createdBy) return false
+  return createdBy === userId
+}
+
 export const ASSIGNABLE_ROLES = ['player', 'captain'] as const
 
 export type AssignableRole = (typeof ASSIGNABLE_ROLES)[number]
@@ -87,6 +98,8 @@ export type Announcement = {
   title: string
   body: string
   author_id: string | null
+  /** Same member as author_id. The database column is created_by, kept equal by the stamp trigger. */
+  created_by: string | null
   pinned: boolean
   created_at: string
   updated_at: string

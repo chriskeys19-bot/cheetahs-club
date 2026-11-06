@@ -21,6 +21,8 @@ export type AuthValue = {
   acknowledgeRecovery: () => void
   signIn: (email: string, password: string) => Promise<string | null>
   signOut: () => Promise<void>
+  /** False while a Google-only session is still being checked against an invite. */
+  googleGateReady: boolean
 }
 
 export const AuthContext = createContext<AuthValue | null>(null)

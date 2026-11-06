@@ -18,6 +18,7 @@ function parseAnnouncements(value: unknown): Announcement[] {
     ) {
       continue
     }
+    const authorId = typeof row.author_id === 'string' ? row.author_id : null
     rows.push({
       id: row.id,
       title: row.title,
@@ -25,7 +26,10 @@ function parseAnnouncements(value: unknown): Announcement[] {
       pinned: row.pinned,
       created_at: row.created_at,
       updated_at: row.updated_at,
-      author_id: typeof row.author_id === 'string' ? row.author_id : null,
+      author_id: authorId,
+      // created_by is kept equal to author_id. Read author_id so the board
+      // still loads before that column is added.
+      created_by: authorId,
     })
   }
   return rows
