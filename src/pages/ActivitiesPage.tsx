@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
 import { ActivityForm } from '../components/ActivityForm.tsx'
+import { ConfirmDialog } from '../components/ConfirmDialog.tsx'
+import { RichText } from '../components/RichText.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
-import { loadActivities, removeActivity } from '../lib/activities.ts'
+import { loadActivities, removeActivity, removeActivitySeries } from '../lib/activities.ts'
 import { formatPacific } from '../lib/format.ts'
+import { visibleText } from '../lib/richText.ts'
 import { loadTeams } from '../lib/teams.ts'
-import { canManageClub, type Activity, type Team } from '../lib/types.ts'
+import { canEditItem, canManageClub, type Activity, type Team } from '../lib/types.ts'
 
 const PAST_WINDOW_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -15,8 +18,9 @@ function teamLabel(teams: Team[], teamId: string | null): string {
 }
 
 export function ActivitiesPage() {
-  const { profile, profileReady } = useAuth()
+  const { session, profile, profileReady } = useAuth()
   const staff = canManageClub(profile?.role)
+  const userId = session?.user.id ?? null
   const [teams, setTeams] = useState<Team[]>([])
   const [upcoming, setUpcoming] = useState<Activity[] | null>(null)
   const [past, setPast] = useState<Activity[]>([])
@@ -25,6 +29,11 @@ export function ActivitiesPage() {
   const [token, setToken] = useState(0)
   const [editing, setEditing] = useState<Activity | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Activity | null>(null)
+
+  function canEdit(row: Activity) {
+    return canEditItem(profile?.role, userId, row.created_by)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -63,16 +72,17 @@ export function ActivitiesPage() {
     setToken((value) => value + 1)
   }
 
-  async function onRemove(row: Activity) {
-    if (!window.confirm(`Remove “${row.title}”?`)) return
+  async function onRemove(row: Activity, scope: 'one' | 'series') {
     setPendingId(row.id)
-    const message = await removeActivity(row.id)
+    const message =
+      scope === 'series' && row.series_id ? await removeActivitySeries(row.series_id) : await removeActivity(row.id)
     setPendingId(null)
+    setConfirming(null)
     if (message) {
       setError(message)
       return
     }
-    if (editing?.id === row.id) setEditing(null)
+    if (editing?.id === row.id || (scope === 'series' && editing?.series_id === row.series_id)) setEditing(null)
     setToken((value) => value + 1)
   }
 
@@ -86,10 +96,10 @@ export function ActivitiesPage() {
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins add activities. Recurring adds one row per date. Every member can read the feed.
+        Captains and admins add activities. You can edit or delete an activity you added.
       </RoleNote>
       <div className="desk-split">
-      {staff ? (
+      {staff || editing ? (
         <ActivityForm
           key={editing?.id ?? 'new'}
           teams={teams}
@@ -125,10 +135,10 @@ export function ActivitiesPage() {
                 key={row.id}
                 row={row}
                 teams={teams}
-                staff={staff}
+                canEdit={canEdit(row)}
                 pending={pendingId === row.id}
                 onEdit={() => setEditing(row)}
-                onRemove={() => onRemove(row)}
+                onDelete={() => setConfirming(row)}
               />
             ))}
           </ul>
@@ -150,15 +160,36 @@ export function ActivitiesPage() {
                   key={row.id}
                   row={row}
                   teams={teams}
-                  staff={staff}
+                  canEdit={canEdit(row)}
                   pending={pendingId === row.id}
                   onEdit={() => setEditing(row)}
-                  onRemove={() => onRemove(row)}
+                  onDelete={() => setConfirming(row)}
                 />
               ))}
             </ul>
           ) : null}
         </section>
+      ) : null}
+      {confirming ? (
+        <ConfirmDialog
+          title={`Delete “${visibleText(confirming.title)}”?`}
+          body={
+            confirming.series_id
+              ? 'This date is part of a series. Deleting the series removes every date in it.'
+              : 'This activity comes off the feed for every member.'
+          }
+          confirmLabel={confirming.series_id ? 'This date' : 'Delete'}
+          extra={
+            confirming.series_id
+              ? { label: 'Entire series', onClick: () => onRemove(confirming, 'series') }
+              : undefined
+          }
+          busy={pendingId === confirming.id}
+          onCancel={() => {
+            if (pendingId !== confirming.id) setConfirming(null)
+          }}
+          onConfirm={() => onRemove(confirming, 'one')}
+        />
       ) : null}
     </div>
   )
@@ -167,17 +198,17 @@ export function ActivitiesPage() {
 function ActivityCard({
   row,
   teams,
-  staff,
+  canEdit,
   pending,
   onEdit,
-  onRemove,
+  onDelete,
 }: {
   row: Activity
   teams: Team[]
-  staff: boolean
+  canEdit: boolean
   pending: boolean
   onEdit: () => void
-  onRemove: () => void
+  onDelete: () => void
 }) {
   return (
     <li className="info-card">
@@ -186,17 +217,17 @@ function ActivityCard({
         {row.series_id ? <span className="tag">Series</span> : null}
         <span className="fine-print">{formatPacific(row.starts_at)}</span>
       </div>
-      <h3>{row.title}</h3>
+      <RichText value={row.title} as="h3" />
       {row.ends_at ? <p className="fine-print">Until {formatPacific(row.ends_at)}</p> : null}
       {row.location ? <p>{row.location}</p> : null}
-      {row.description ? <p className="feedback-body">{row.description}</p> : null}
-      {staff ? (
+      {row.description ? <RichText value={row.description} /> : null}
+      {canEdit ? (
         <div className="card-actions">
           <button type="button" className="button button-quiet" onClick={onEdit}>
             Edit
           </button>
-          <button type="button" className="button button-quiet" onClick={onRemove} disabled={pending}>
-            Remove
+          <button type="button" className="button button-quiet" onClick={onDelete} disabled={pending}>
+            Delete
           </button>
         </div>
       ) : null}

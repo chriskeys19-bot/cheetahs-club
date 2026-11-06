@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AuthContext, type AuthValue } from './auth-context.ts'
+import {
+  clearInviteToken,
+  finishGoogleSignIn,
+  isGoogleOnlyUser,
+  readInviteToken,
+  writeOauthNotice,
+} from '../lib/googleAuth.ts'
 import { canSwitchRole, readStoredViewRole, writeStoredViewRole } from '../lib/roleView.ts'
-import { supabase } from '../lib/supabase.ts'
+import { ensureSplitwiseMembership, resetSplitwiseEnsureOnSignOut } from '../lib/splitwiseMembership.ts'
+import { clearRecoveryMarker, recoverySessionApplied, supabase } from '../lib/supabase.ts'
 import { isClubRole, type ClubRole, type Profile } from '../lib/types.ts'
 import type { Session } from '@supabase/supabase-js'
 
@@ -23,16 +31,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     error: string | null
   } | null>(null)
   const [viewChoice, setViewChoice] = useState<ClubRole | null>(() => readStoredViewRole())
+  const [recoveryEvent, setRecoveryEvent] = useState(false)
+  const [gate, setGate] = useState<{ userId: string; ready: boolean } | null>(null)
 
   useEffect(() => {
     if (!client) return
 
     let cancelled = false
 
-    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => {
+    const { data: subscription } = client.auth.onAuthStateChange((event, next) => {
       if (cancelled) return
+      if (event === 'PASSWORD_RECOVERY') setRecoveryEvent(true)
+      if (event === 'SIGNED_OUT') {
+        setRecoveryEvent(false)
+        clearRecoveryMarker()
+      }
       setSession(next)
       setAuthReady(true)
+      if (event === 'SIGNED_OUT') {
+        resetSplitwiseEnsureOnSignOut()
+        return
+      }
+      if (!next) return
+      // Password, invite sign-in, and Google OAuth all land here. Defer the
+      // call so it does not run inside the auth callback, and never block login.
+      if (event === 'SIGNED_IN') ensureSplitwiseMembership(true)
+      else if (event === 'INITIAL_SESSION') ensureSplitwiseMembership(false)
     })
 
     client.auth.getSession().then(({ data }) => {
@@ -46,6 +70,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.subscription.unsubscribe()
     }
   }, [client])
+
+  const userId = session?.user.id ?? null
+  const onCallback = window.location.pathname === '/auth/callback'
+  const needsGoogleGate = !!session && !onCallback && isGoogleOnlyUser(session.user)
+  const googleGateReady = !needsGoogleGate || (gate?.userId === userId && gate.ready)
+
+  useEffect(() => {
+    if (!client || !userId) return
+    const supabaseClient = client
+    let cancelled = false
+
+    async function checkGoogleMembership() {
+      if (window.location.pathname === '/auth/callback') return
+      const { data } = await supabaseClient.auth.getSession()
+      const user = data.session?.user
+      if (!user || user.id !== userId || !isGoogleOnlyUser(user)) return
+      const result = await finishGoogleSignIn(readInviteToken())
+      if (cancelled) return
+      if (result.status === 'member' || result.status === 'joined') {
+        clearInviteToken()
+        setGate({ userId, ready: true })
+        return
+      }
+      writeOauthNotice(result)
+      clearInviteToken()
+      await supabaseClient.auth.signOut()
+    }
+
+    void checkGoogleMembership()
+    return () => {
+      cancelled = true
+    }
+  }, [client, userId])
 
   useEffect(() => {
     if (!authReady || !client || !session) return
@@ -78,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const allowed = canSwitchRole(session?.user.email)
   const viewRole =
     allowed && accountProfile && viewChoice && viewChoice !== accountProfile.role ? viewChoice : null
+  // A missed PASSWORD_RECOVERY event still counts when this session's access
+  // token is the one from the recovery redirect. The check is idempotent.
+  const passwordRecovery = session !== null && (recoveryEvent || recoverySessionApplied(session.access_token))
   const profile = useMemo(() => {
     if (!accountProfile) return null
     if (!viewRole) return accountProfile
@@ -95,6 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [client],
   )
+
+  const acknowledgeRecovery = useCallback(() => {
+    setRecoveryEvent(false)
+    clearRecoveryMarker()
+  }, [])
 
   const signOut = useCallback(async () => {
     if (!client) return
@@ -123,8 +188,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       canSwitchRole: allowed && accountProfile !== null,
       viewRole,
       setViewRole,
+      passwordRecovery,
+      acknowledgeRecovery,
       signIn,
       signOut,
+      googleGateReady,
     }),
     [
       session,
@@ -136,8 +204,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       allowed,
       viewRole,
       setViewRole,
+      passwordRecovery,
+      acknowledgeRecovery,
       signIn,
       signOut,
+      googleGateReady,
     ],
   )
 

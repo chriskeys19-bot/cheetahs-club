@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { GameMeta } from '../components/GameMeta.tsx'
+import { RichText } from '../components/RichText.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
 import { WelcomeQuote } from '../components/WelcomeQuote.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
@@ -11,7 +12,7 @@ import { formatCents } from '../lib/money.ts'
 import { eventsInPacificWeek, eventTitle, isCheetahsLeagueGame, loadSchedule } from '../lib/schedules.ts'
 import { loadSplitwiseHome, type SplitwiseHome } from '../lib/splitwise.ts'
 import { loadTeams } from '../lib/teams.ts'
-import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
+import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
   canManageClub,
   displayName,
@@ -83,6 +84,9 @@ export function HomePage() {
   const upcoming = leagueGames
     .filter((event) => asOf === null || new Date(event.starts_at).getTime() >= asOf)
     .slice(0, 3)
+  const venmoUsername = dues
+    ? venmoPayHandle({ venmoUsername: dues.venmoUsername, syncedAt: dues.syncedAt })
+    : null
   const name = displayName(profile, session?.user.email)
   const roleLine = profile
     ? `You are signed in as ${roleLabel(profile.role).toLowerCase()}.`
@@ -140,15 +144,23 @@ export function HomePage() {
               <p className="money-line">
                 <span>You owe {formatCents(-dues.netCents)}</span>
               </p>
-              <p className="fine-print">
-                Pay the club on Venmo. A captain records it in Splitwise, which is the ledger. This app does not mark
-                the balance paid.
-              </p>
-              <VenmoPayLink
-                username={resolveVenmoUsername({ venmoUsername: dues.venmoUsername, syncedAt: dues.syncedAt })}
-                amountCents={-dues.netCents}
-                note={duesVenmoNote(dues.groupName ?? 'Splitwise')}
-              />
+              {venmoUsername ? (
+                <>
+                  <p className="fine-print">
+                    Pay the club on Venmo. A captain records it in Splitwise, which is the ledger. This app does not mark
+                    the balance paid.
+                  </p>
+                  <VenmoPayLink
+                    username={venmoUsername}
+                    amountCents={-dues.netCents}
+                    note={duesVenmoNote(dues.groupName ?? 'Splitwise')}
+                  />
+                </>
+              ) : (
+                <p className="fine-print">
+                  A captain records payments in Splitwise, which is the ledger. This app does not mark the balance paid.
+                </p>
+              )}
             </>
           ) : dues.netCents > 0 ? (
             <p>The group owes you {formatCents(dues.netCents)}.</p>
@@ -210,8 +222,8 @@ export function HomePage() {
             <div className="tag-row">
               {notice.pinned ? <span className="tag tag-gold">Pinned</span> : null}
             </div>
-            <h3>{notice.title}</h3>
-            <p className="clamp">{notice.body}</p>
+            <RichText value={notice.title} as="h3" />
+            <RichText value={notice.body} className="clamp" />
           </article>
         ) : null}
         {boardReady && !notice && !boardError ? <p className="empty-copy">No announcements yet.</p> : null}

@@ -12,11 +12,27 @@ verify_jwt = false
 [functions.accept-invite]
 verify_jwt = false
 
+# finish-google-signin runs after the browser exchanges the Google code.
+# The gateway requires the new user's JWT. The function then admits an
+# invited address, recognizes an already linked member, or deletes a
+# Google-only user who has no invite.
+
+[functions.finish-google-signin]
+verify_jwt = true
+
 # send-invite-email is only for a signed-in captain or admin.
 # The gateway requires a user JWT. The function then checks profiles.role
 # and reads the invite under that user's row level security.
 
 [functions.send-invite-email]
+verify_jwt = true
+
+# admin-reset-password is only for a signed-in admin.
+# The gateway requires a user JWT. The function then reads profiles.role
+# for that user. The View-as switcher is not sent and is not trusted.
+# After the role check, the service role creates a recovery link.
+
+[functions.admin-reset-password]
 verify_jwt = true
 
 # sync-splitwise checks a captain/admin JWT itself, and also accepts the
@@ -26,3 +42,10 @@ verify_jwt = true
 
 [functions.sync-splitwise]
 verify_jwt = false
+
+# splitwise-ensure-member adds the signed-in member to the Cheetahs group.
+# The gateway requires a user JWT. The handler calls getUser again, then
+# reads profiles.role for the admin backfill. Do not deploy with --no-verify-jwt.
+
+[functions.splitwise-ensure-member]
+verify_jwt = true

@@ -1,6 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
+import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx'
 import { Splash } from '../components/Splash.tsx'
+import { startGoogleSignIn } from '../lib/googleAuth.ts'
 import { acceptInvite, previewInvite, type InvitePreview } from '../lib/invites.ts'
 import { formatWhen } from '../lib/format.ts'
 
@@ -22,6 +24,7 @@ export function JoinPage() {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [googleBusy, setGoogleBusy] = useState(false)
 
   useEffect(() => {
     if (!tokenValid) return
@@ -45,9 +48,20 @@ export function JoinPage() {
 
   if (loadedToken !== token) return <Splash label="Checking this invite…" />
 
+  async function onGoogle() {
+    if (!preview || busy || googleBusy) return
+    setGoogleBusy(true)
+    setError(null)
+    const message = await startGoogleSignIn(token)
+    if (message) {
+      setError(message)
+      setGoogleBusy(false)
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!preview || busy) return
+    if (!preview || busy || googleBusy) return
     const name = fullName.trim().replace(/\s+/g, ' ')
     if (name.length < 1 || name.length > 80) {
       setError('Enter your full name.')
@@ -81,7 +95,10 @@ export function JoinPage() {
         <div>
           <p className="hero-kicker">Join</p>
           <h1>Cheetahs Cricket Club</h1>
-          <p className="hero-copy">Set your name and password. You will join as a player.</p>
+          <p className="hero-copy">
+            Continue with the Google account for this invite, or set a password. You will join as a
+            player.
+          </p>
         </div>
       </section>
       <section className="login-panel">
@@ -93,6 +110,10 @@ export function JoinPage() {
             </p>
             <label htmlFor="join-email">Email</label>
             <input id="join-email" name="email" type="email" value={preview.email} readOnly />
+            <GoogleSignInButton busy={googleBusy} disabled={busy} onClick={() => void onGoogle()} />
+            <div className="login-or">
+              <span>or</span>
+            </div>
             <label htmlFor={nameId}>Full name</label>
             <input
               id={nameId}
@@ -132,7 +153,7 @@ export function JoinPage() {
                 {error}
               </p>
             ) : null}
-            <button type="submit" className="button button-gold button-block" disabled={busy}>
+            <button type="submit" className="button button-gold button-block" disabled={busy || googleBusy}>
               {busy ? 'Creating account…' : 'Join as a player'}
             </button>
             <p className="fine-print">

@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
 import { AnnouncementForm } from '../components/AnnouncementForm.tsx'
+import { ConfirmDialog } from '../components/ConfirmDialog.tsx'
+import { RichText } from '../components/RichText.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { loadAnnouncements, removeAnnouncement, saveAnnouncement } from '../lib/announcements.ts'
 import { formatPacific } from '../lib/format.ts'
-import { canManageClub, type Announcement } from '../lib/types.ts'
+import { visibleText } from '../lib/richText.ts'
+import { canEditItem, canManageClub, type Announcement } from '../lib/types.ts'
 
 export function AnnouncementsPage() {
-  const { profile, profileReady } = useAuth()
+  const { session, profile, profileReady } = useAuth()
   const staff = canManageClub(profile?.role)
+  const userId = session?.user.id ?? null
   const [rows, setRows] = useState<Announcement[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [editing, setEditing] = useState<Announcement | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<Announcement | null>(null)
+
+  function canEdit(row: Announcement) {
+    return canEditItem(profile?.role, userId, row.created_by)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -51,10 +60,10 @@ export function AnnouncementsPage() {
   }
 
   async function onRemove(row: Announcement) {
-    if (!window.confirm(`Remove “${row.title}”?`)) return
     setPendingId(row.id)
     const message = await removeAnnouncement(row.id)
     setPendingId(null)
+    setConfirming(null)
     if (message) {
       setError(message)
       return
@@ -71,10 +80,10 @@ export function AnnouncementsPage() {
         <p className="lede">Club-wide notes from captains and admins. Pinned notes stay at the top.</p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins post announcements. Every member can read them.
+        Captains and admins post announcements. You can edit or delete a note you posted.
       </RoleNote>
       <div className="desk-split">
-      {staff ? (
+      {staff || editing ? (
         <AnnouncementForm key={editing?.id ?? 'new'} initial={editing} onSaved={refresh} onCancel={() => setEditing(null)} />
       ) : null}
       <section className="panel" aria-labelledby="announcements-heading">
@@ -99,9 +108,9 @@ export function AnnouncementsPage() {
                   {row.pinned ? <span className="tag tag-gold">Pinned</span> : null}
                   <span className="fine-print">{formatPacific(row.created_at)}</span>
                 </div>
-                <h3>{row.title}</h3>
-                <p className="feedback-body">{row.body}</p>
-                {staff ? (
+                <RichText value={row.title} as="h3" />
+                <RichText value={row.body} />
+                {canEdit(row) ? (
                   <div className="card-actions">
                     <button
                       type="button"
@@ -117,10 +126,10 @@ export function AnnouncementsPage() {
                     <button
                       type="button"
                       className="button button-quiet"
-                      onClick={() => onRemove(row)}
+                      onClick={() => setConfirming(row)}
                       disabled={pendingId === row.id}
                     >
-                      Remove
+                      Delete
                     </button>
                   </div>
                 ) : null}
@@ -130,6 +139,18 @@ export function AnnouncementsPage() {
         ) : null}
       </section>
       </div>
+      {confirming ? (
+        <ConfirmDialog
+          title={`Delete “${visibleText(confirming.title)}”?`}
+          body="This note comes off the board for every member."
+          confirmLabel="Delete"
+          busy={pendingId === confirming.id}
+          onCancel={() => {
+            if (pendingId !== confirming.id) setConfirming(null)
+          }}
+          onConfirm={() => onRemove(confirming)}
+        />
+      ) : null}
     </div>
   )
 }

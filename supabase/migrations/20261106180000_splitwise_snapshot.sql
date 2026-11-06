@@ -270,10 +270,11 @@ begin
   where id = 1
   for update;
 
-  delete from public.splitwise_shares;
-  delete from public.splitwise_expenses;
-  delete from public.splitwise_debts;
-  delete from public.splitwise_balances;
+  -- WHERE true satisfies pg-safeupdate on API sessions.
+  delete from public.splitwise_shares where true;
+  delete from public.splitwise_expenses where true;
+  delete from public.splitwise_debts where true;
+  delete from public.splitwise_balances where true;
 
   insert into public.splitwise_balances (
     splitwise_user_id,

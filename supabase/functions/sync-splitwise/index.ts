@@ -18,6 +18,8 @@ import {
 
 const SPLITWISE_API = 'https://secure.splitwise.com/api/v3.0'
 const DEFAULT_ORIGIN = 'https://cheetahs-club.pages.dev'
+// Stored when VENMO_USERNAME is unset. The column cannot be blank.
+// The SPA treats this sentinel as "no handle" and does not render pay links for it.
 const VENMO_PLACEHOLDER = 'cheetahs'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -92,10 +94,10 @@ function positiveId(value: unknown): number | null {
   return id
 }
 
-async function readForce(req: Request): Promise<{ force: boolean } | Response> {
+async function readForce(req: Request): Promise<{ force: boolean; bypass: boolean } | Response> {
   const text = await req.text()
-  if (text.length > 200) return json(req, 413, { error: 'Request is too large.' })
-  if (!text.trim()) return { force: false }
+  if (text.length > 400) return json(req, 413, { error: 'Request is too large.' })
+  if (!text.trim()) return { force: false, bypass: false }
   let body: unknown
   try {
     body = JSON.parse(text) as unknown
@@ -107,15 +109,23 @@ async function readForce(req: Request): Promise<{ force: boolean } | Response> {
   if (record.force !== undefined && typeof record.force !== 'boolean') {
     return json(req, 400, { error: 'force must be true or false.' })
   }
-  return { force: record.force === true }
+  if (record.bypass !== undefined && typeof record.bypass !== 'boolean') {
+    return json(req, 400, { error: 'bypass must be true or false.' })
+  }
+  return { force: record.force === true, bypass: record.bypass === true }
 }
 
-async function authorize(req: Request): Promise<{ ok: true } | Response> {
+async function authorize(req: Request): Promise<{ ok: true; service: boolean } | Response> {
   const cronGiven = req.headers.get('x-splitwise-cron') ?? ''
   const cronExpected = (Deno.env.get('SPLITWISE_CRON_SECRET') ?? '').trim()
-  if (cronGiven && secretsMatch(cronGiven, cronExpected)) return { ok: true }
+  if (cronGiven && secretsMatch(cronGiven, cronExpected)) return { ok: true, service: false }
 
   const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  // splitwise-ensure-member calls this after a successful add so the dues
+  // copy includes the new member. The browser never has this key. bypass in
+  // the body is ignored unless this match succeeds. Do not log the header.
+  const serviceKey = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '').trim()
+  if (jwt && serviceKey && secretsMatch(jwt, serviceKey)) return { ok: true, service: true }
   if (!jwt || jwt.split('.').length !== 3) return json(req, 401, { error: 'Sign in as a captain or admin, then refresh.' })
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -135,7 +145,7 @@ async function authorize(req: Request): Promise<{ ok: true } | Response> {
   if (profileResult.error || (role !== 'admin' && role !== 'captain')) {
     return json(req, 403, { error: 'Captains and admins can refresh Splitwise.' })
   }
-  return { ok: true }
+  return { ok: true, service: false }
 }
 
 function adminClient(): AdminClient | null {
@@ -333,7 +343,8 @@ Deno.serve(async (req: Request) => {
   const admin = adminClient()
   if (!admin) return json(req, 500, { error: 'Could not refresh Splitwise.' })
 
-  const skippedAt = await freshSyncedAt(admin, forceResult.force)
+  const skippedAt =
+    authResult.service && forceResult.bypass ? null : await freshSyncedAt(admin, forceResult.force)
   if (skippedAt) return json(req, 200, { ok: true, skipped: true, synced_at: skippedAt })
 
   const tokenResult = await splitwiseToken()

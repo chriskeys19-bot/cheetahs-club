@@ -25,7 +25,14 @@ import {
   tallyPayments,
 } from '../lib/money.ts'
 import { emptySnapshot, loadSplitwiseSnapshot, syncSplitwise, type SplitwiseSnapshot } from '../lib/splitwise.ts'
-import { duesVenmoNote, resolveVenmoUsername } from '../lib/venmo.ts'
+import {
+  addAllSplitwiseMembers,
+  onSplitwiseEnsureSettled,
+  takeSplitwiseEnsureNotice,
+  type SplitwiseAddSummary,
+  type SplitwiseEnsureNotice,
+} from '../lib/splitwiseMembership.ts'
+import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
   canManageClub,
   type ClaimStatus,
@@ -59,8 +66,9 @@ function sortMine(rows: DuesAssessment[]): DuesAssessment[] {
 }
 
 export function DuesPage() {
-  const { session, profile, profileReady, profileError } = useAuth()
+  const { session, profile, accountProfile, profileReady, profileError } = useAuth()
   const staff = canManageClub(profile?.role)
+  const isAdmin = accountProfile?.role === 'admin'
   const userId = session?.user.id ?? null
   const [view, setView] = useState<DuesView>('balances')
   const [desk, setDesk] = useState<DuesDesk | null>(null)
@@ -69,6 +77,9 @@ export function DuesPage() {
   const [snapshotReady, setSnapshotReady] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [addingMembers, setAddingMembers] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [addSummary, setAddSummary] = useState<SplitwiseAddSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [showArchived, setShowArchived] = useState(false)
@@ -78,9 +89,12 @@ export function DuesPage() {
   const running = useRef(false)
   const refreshLock = useRef(false)
   const autoTried = useRef(false)
+  const addLock = useRef(false)
+  const staffRef = useRef(staff)
+  const refreshSplitwiseRef = useRef<(force: boolean) => Promise<void>>(async () => {})
   const activeView: DuesView = staff ? view : 'mine'
   const today = pacificDateInput()
-  const venmoUsername = resolveVenmoUsername(snapshot.meta)
+  const venmoUsername = venmoPayHandle(snapshot.meta)
 
   useEffect(() => {
     if (!profileReady || !userId) return
@@ -136,6 +150,48 @@ export function DuesPage() {
   }
 
   useEffect(() => {
+    staffRef.current = staff
+    refreshSplitwiseRef.current = refreshSplitwise
+  })
+
+  async function addAllMembers() {
+    if (!isAdmin || addLock.current) return
+    const confirmed = window.confirm(
+      'Add every club member who is not already recorded on the Splitwise group? Splitwise emails anyone who does not already have an account.',
+    )
+    if (!confirmed) return
+    addLock.current = true
+    setAddingMembers(true)
+    setAddError(null)
+    try {
+      const result = await addAllSplitwiseMembers()
+      if (result.error || !result.summary) {
+        setAddError(result.error ?? 'Could not add members to Splitwise.')
+        return
+      }
+      setAddSummary(result.summary)
+      if (result.summary.synced) refresh()
+      else if (result.summary.added > 0 || result.summary.alreadyMember > 0) await refreshSplitwise(true)
+    } finally {
+      addLock.current = false
+      setAddingMembers(false)
+    }
+  }
+
+  useEffect(() => {
+    function apply(notice: SplitwiseEnsureNotice) {
+      if (!notice.synced && staffRef.current) {
+        void refreshSplitwiseRef.current(false)
+        return
+      }
+      setToken((value) => value + 1)
+    }
+    const pending = takeSplitwiseEnsureNotice()
+    if (pending) apply(pending)
+    return onSplitwiseEnsureSettled(apply)
+  }, [])
+
+  useEffect(() => {
     if (!staff || !snapshotReady || autoTried.current) return
     const syncedAt = snapshot.meta?.syncedAt
     const stale = !syncedAt || Date.now() - new Date(syncedAt).getTime() > 15 * 60 * 1000
@@ -186,8 +242,12 @@ export function DuesPage() {
         <h1>Dues</h1>
         <p className="lede">
           {staff
-            ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
-            : 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'}
+            ? venmoUsername
+              ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
+              : 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Log new costs in Splitwise. The local expenses and charges tabs do not.'
+            : venmoUsername
+              ? 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'
+              : 'What you owe is the balance copied from the club Splitwise group. A captain records payments in Splitwise. The app does not take the payment.'}
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
@@ -235,6 +295,11 @@ export function DuesPage() {
           refreshing={refreshing}
           refreshError={refreshError}
           onRefresh={() => void refreshSplitwise(true)}
+          isAdmin={isAdmin}
+          addingMembers={addingMembers}
+          addError={addError}
+          addSummary={addSummary}
+          onAddAll={() => void addAllMembers()}
         />
       ) : null}
       {staff ? (
@@ -434,7 +499,7 @@ function PaymentNoteForm({
     }
     const method = methodNote.trim()
     if (method.length < 1 || method.length > 160) {
-      setError('Add how it was paid, up to 160 characters. Example: Venmo @cheetahs.')
+      setError('Add how it was paid, up to 160 characters. Example: cash at practice.')
       return
     }
     const detail = notes.trim()
@@ -464,7 +529,7 @@ function PaymentNoteForm({
         value={methodNote}
         onChange={(event) => setMethodNote(event.target.value)}
         maxLength={160}
-        placeholder="Venmo @cheetahs"
+        placeholder="Cash at practice"
         required
       />
       <label htmlFor={`${fieldId}-notes`}>Note</label>
@@ -571,7 +636,7 @@ function MyDues({
   openTotal: number
   staff: boolean
   userId: string | null
-  venmoUsername: string
+  venmoUsername: string | null
   payingId: string | null
   pendingId: string | null
   onPayStart: (id: string) => void
@@ -633,11 +698,13 @@ function MyDues({
                 />
                 {row.status === 'open' && unclaimed > 0 && payingId !== row.id ? (
                   <div className="card-actions">
-                    <VenmoPayLink
-                      username={venmoUsername}
-                      amountCents={unclaimed}
-                      note={duesVenmoNote(row.period_label)}
-                    />
+                    {venmoUsername ? (
+                      <VenmoPayLink
+                        username={venmoUsername}
+                        amountCents={unclaimed}
+                        note={duesVenmoNote(row.period_label)}
+                      />
+                    ) : null}
                     <button type="button" className="button button-quiet" onClick={() => onPayStart(row.id)}>
                       {staff ? 'Record payment' : 'I paid'}
                     </button>

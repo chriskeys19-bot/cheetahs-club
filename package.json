@@ -11,6 +11,11 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",
+    "@tiptap/core": "^3.33.0",
+    "@tiptap/pm": "^3.33.0",
+    "@tiptap/react": "^3.33.0",
+    "@tiptap/starter-kit": "^3.33.0",
+    "dompurify": "^3.4.17",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router": "^7.9.4"

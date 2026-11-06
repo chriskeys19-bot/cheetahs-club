@@ -1,5 +1,7 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { SearchField } from './SearchField.tsx'
 import { assessDues, memberLabel } from '../lib/dues.ts'
+import { filterByQuery } from '../lib/search.ts'
 import { centsToDollarInput, formatCents, parseDollarsToCents, splitCents } from '../lib/money.ts'
 import type { DuesRosterMember, Expense, Team, TeamMembership } from '../lib/types.ts'
 
@@ -42,12 +44,11 @@ export function AssessDuesForm({
     return ids
   }, [memberships, teamId])
 
-  const visible = roster.filter((member) => {
-    if (teamId && !onSide.has(member.id)) return false
-    const needle = query.trim().toLowerCase()
-    if (!needle) return true
-    return memberLabel(member, member.id).toLowerCase().includes(needle)
-  })
+  const visible = filterByQuery(
+    roster.filter((member) => !teamId || onSide.has(member.id)),
+    query,
+    (member) => [memberLabel(member, member.id)],
+  )
   const bulkMembers = teamId ? roster.filter((member) => onSide.has(member.id)) : visible
 
   const ordered = roster.filter((member) => selected.includes(member.id))
@@ -265,12 +266,11 @@ export function AssessDuesForm({
           ) : null}
         </div>
       ) : null}
-      <label htmlFor={`${titleId}-find`}>Find a member</label>
-      <input
+      <SearchField
         id={`${titleId}-find`}
-        name="find"
+        label="Find a member"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={setQuery}
         placeholder="Name"
       />
       <div className="filter-bar">
