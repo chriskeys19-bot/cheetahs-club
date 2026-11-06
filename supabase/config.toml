@@ -26,3 +26,10 @@ verify_jwt = true
 
 [functions.sync-splitwise]
 verify_jwt = false
+
+# splitwise-ensure-member adds the signed-in member to the Cheetahs group.
+# The gateway requires a user JWT. The handler calls getUser again, then
+# reads profiles.role for the admin backfill. Do not deploy with --no-verify-jwt.
+
+[functions.splitwise-ensure-member]
+verify_jwt = true

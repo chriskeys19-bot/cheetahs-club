@@ -111,6 +111,7 @@ Venmo pay buttons stay hidden until a Pages build sets `VITE_VENMO_ENABLED=true`
 
 ```bash
 supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy splitwise-ensure-member --project-ref lutcbvzunjcosncvdyke
 supabase secrets set \
   SPLITWISE_API_KEY='the treasurer key' \
   SPLITWISE_GROUP_ID='12345678' \
@@ -119,7 +120,7 @@ supabase secrets set \
   --project-ref lutcbvzunjcosncvdyke
 ```
 
-The handler still requires a captain or admin JWT, or the `x-splitwise-cron` header. `--no-verify-jwt` only lets the cron request reach that check. Map members by using the same email in Splitwise and in the clubhouse. A captain opens Dues and refreshes. Players read only their mapped balance row.
+`sync-splitwise` still requires a captain or admin JWT, the cron header, or the service role. `--no-verify-jwt` only lets the cron request reach that check. `splitwise-ensure-member` keeps the gateway JWT check on. Do not pass `--no-verify-jwt` for it. Apply `supabase/migrations/20261107043000_splitwise_membership.sql` first. Sign-in adds the member's email to the group when it is missing. An admin can backfill from Dues. Players read only their mapped balance row.
 
 `public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity.
 
