@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
-import { canManageClub, displayName } from '../lib/types.ts'
+import { canManageClub, displayName, roleLabel } from '../lib/types.ts'
 import { InstagramLink } from './InstagramLink.tsx'
 import { RoleBadge } from './RoleBadge.tsx'
+import { RoleSwitcher } from './RoleSwitcher.tsx'
 
 export function Shell() {
-  const { session, profile, signOut } = useAuth()
+  const { session, profile, accountProfile, viewRole, setViewRole, canSwitchRole, signOut } = useAuth()
   const navigate = useNavigate()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -27,7 +28,7 @@ export function Shell() {
   }
 
   return (
-    <div className="shell">
+    <div className={canSwitchRole ? 'shell shell-preview' : 'shell'}>
       <header className="topbar">
         <div className="topbar-brand">
           <NavLink to="/" className="brand" end>
@@ -40,6 +41,7 @@ export function Shell() {
           <InstagramLink />
         </div>
         <div className="topbar-user">
+          <RoleSwitcher placement="header" />
           <div className="identity">
             <span className="identity-name">{name}</span>
             <span className="identity-email">{email}</span>
@@ -51,18 +53,32 @@ export function Shell() {
         </div>
       </header>
       <nav className="shell-nav" aria-label="Clubhouse">
-        <NavLink to="/" end>
-          Home
-        </NavLink>
-        <NavLink to="/announcements">Announcements</NavLink>
-        <NavLink to="/activities">Activities</NavLink>
-        <NavLink to="/schedules">Schedules</NavLink>
-        <NavLink to="/polls">Polls</NavLink>
-        <NavLink to="/dues">Dues</NavLink>
-        <NavLink to="/feedback">Feedback</NavLink>
-        {canManageClub(profile?.role) ? <NavLink to="/invites">Invites</NavLink> : null}
-        <NavLink to="/admin">Admin</NavLink>
+        <RoleSwitcher placement="menu" />
+        <div className="shell-nav-links">
+          <NavLink to="/" end>
+            Home
+          </NavLink>
+          <NavLink to="/announcements">Announcements</NavLink>
+          <NavLink to="/activities">Activities</NavLink>
+          <NavLink to="/schedules">Schedules</NavLink>
+          <NavLink to="/polls">Polls</NavLink>
+          <NavLink to="/dues">Dues</NavLink>
+          <NavLink to="/feedback">Feedback</NavLink>
+          {canManageClub(profile?.role) ? <NavLink to="/invites">Invites</NavLink> : null}
+          <NavLink to="/admin">Admin</NavLink>
+        </div>
       </nav>
+      {viewRole && accountProfile ? (
+        <div className="view-banner" role="status">
+          <p>
+            <span className="view-banner-chip">Viewing as {roleLabel(viewRole)}</span>
+            <span className="view-banner-note">UI only. Your saved role is unchanged.</span>
+          </p>
+          <button type="button" className="view-banner-reset" onClick={() => setViewRole(null)}>
+            Reset
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <p className="shell-error" role="alert">
           {error}

@@ -15,13 +15,19 @@ The Supabase project is [https://lutcbvzunjcosncvdyke.supabase.co](https://lutcb
 
 ## Brand
 
-| Token | Hex |
-| --- | --- |
-| Navy | `#202050` |
-| Gold | `#D0A050` |
-| Cream | `#F7F4EA` |
-| White | `#FFFFFF` |
-| Near-black | `#0A0A0A` |
+Sampled from `public/crest.jpg` (region medians) and stored as CSS variables in `src/index.css`.
+
+| Sample | Hex | Token |
+| --- | --- | --- |
+| Navy banner plate | `#28264C` | `--crest-navy`, `--color-primary` |
+| Gold outline | `#D4A05C` | `--crest-gold`, `--color-secondary`, `--color-accent` |
+| Gold outline mode | `#D8A050` | `--crest-gold-bright` |
+| Cream field | `#FCF6EE` | `--crest-cream`, `--color-surface` |
+| White field / letters | `#FFFFFF`, `#F9F9FE` | `--crest-white`, `--crest-letter` |
+| Spot black | `#241720` | `--crest-ink`, `--color-text` |
+| Fur | `#B17B4A` | `--crest-fur` |
+
+`--color-accent-ink` (`#8E6944`) is the crest gold darkened toward the spot black so small text on cream and white clears WCAG AA. Buttons, the header, and Win chips keep the sampled gold.
 
 ## Local development
 
@@ -42,6 +48,8 @@ npm run dev
 ```
 
 Accounts are email and password. There is no public sign-up on `/login`. The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`.
+
+`VITE_ROLE_SWITCH_EMAILS` is an optional comma-separated allowlist. When it is unset, only `chriskeys19@gmail.com` sees **View as: Admin | Captain | Player** in the header, and in the bottom menu on a phone. The choice is stored in `localStorage` under `cheetahs.role-view`. While it differs from the saved role, a banner says which role is on screen and **Reset** clears it. Nav items, staff panels, and buttons follow that view. Feedback still records the saved role. Postgres permissions do not change: a preview cannot do anything row level security would deny. On project `lutcbvzunjcosncvdyke` that email already has a `profiles` row with role `admin`. If a profile is missing, invite the address or, as an admin in the SQL editor, set `profiles.role` to `admin` for that user id. Do not create the account from the app.
 
 Captains and admins both open **Invites**. The nav link and the invite policies use the same staff check (`admin` or `captain`). Creating an invite stores a single-use token and emails `https://cheetahs-club.pages.dev/join/<token>` from `cheetahscc123@gmail.com` (display name Cheetahs Cricket Club). The recipient opens the link, enters their name and a password, and the `accept-invite` Edge Function creates the auth user. `handle_new_user` sets `profiles.role` to `player`. The link cannot grant admin or captain. After that they sign in on `/login`. If the email does not send, the invite stays and the captain can still copy the link. An email that already has an account is rejected here. Use **Add to a side** on the same page instead of another join link.
 
@@ -116,7 +124,7 @@ The handler still requires a captain or admin JWT, or the `x-splitwise-cron` hea
 
 Phase 2 adds `announcements`, `activities`, `schedule_events`, `polls`, `poll_options`, and `poll_votes`. Signed-in members can read them. Admins and captains can change announcements, activities, schedule events, and polls. Any signed-in member can vote once on an open poll. Vote totals come from `public.poll_tallies()`, which does not return voter ids.
 
-`schedule_events` holds league games, umpiring duties, practice, and other events (`event_type` is `league_game`, `umpiring`, `practice`, or `other`). `game_date`, `start_time`, and optional `end_time` are Pacific wall-clock values. `starts_at` and `ends_at` are the matching UTC instants. A null `team_id` on practice or other means the event is club-wide. `created_by` is stamped from the signed-in user on insert. Signed-in members can read every row. Admins and captains can insert. Admins, captains, and the creating user can update and delete. The schedules screen shows create, edit, and delete only to admins and captains, and delete asks for confirmation. Players stay read-only in the UI. The winter league games are seeded from the Alpha, Beta, and Gamma tabs of the winter sheet. Schedules and This Week list only those Cheetahs league games. Wednesday practice is a separate filter. Umpiring duties are not shown as games.
+`schedule_events` holds league games, umpiring duties, practice, and other events (`event_type` is `league_game`, `umpiring`, `practice`, or `other`). `game_date`, `start_time`, and optional `end_time` are Pacific wall-clock values. `starts_at` and `ends_at` are the matching UTC instants. A null `team_id` on practice or other means the event is club-wide. `created_by` is stamped from the signed-in user on insert. Signed-in members can read every row. Admins and captains can insert. Admins, captains, and the creating user can update and delete. The schedules screen shows create, edit, and delete only to admins and captains, and delete asks for confirmation. Players stay read-only in the UI. The winter league games are seeded from the Alpha, Beta, and Gamma tabs of the winter sheet. Schedules and This Week list only those Cheetahs league games. Wednesday practice is a separate filter. Umpiring duties are not shown as games. Completed lists league games whose `match_status` is `completed` or that have a posted result, with the Win or Loss chip and scorecard link. Upcoming lists league games that have not started and have no result. A past start by itself does not put a game in Completed.
 
 The home page section **What's happening this week** lists events whose `game_date` falls in the current club week. A week is Monday through Sunday in America/Los_Angeles.
 

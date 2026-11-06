@@ -1,5 +1,11 @@
-import { isLeagueCompleted, kitLine, resultLabel, venueLabel } from '../lib/games.ts'
+import { isLeagueCompleted, kitLine, resultLabel, venueLabel, type GameResult } from '../lib/games.ts'
 import type { ScheduleEvent } from '../lib/types.ts'
+
+function resultClass(result: GameResult | null): string {
+  if (result === 'win') return 'tag tag-win'
+  if (result === 'loss') return 'tag tag-loss'
+  return 'tag tag-navy'
+}
 
 export function GameMeta({
   event,
@@ -12,7 +18,7 @@ export function GameMeta({
 }) {
   if (event.event_type !== 'league_game') return null
   const kit = kitLine(event, teamSlug)
-  const completed = isLeagueCompleted(event, asOf)
+  const completed = isLeagueCompleted(event, asOf) || event.result !== null
   return (
     <div className="game-meta">
       <p className="tag-row">
@@ -21,7 +27,7 @@ export function GameMeta({
       </p>
       {completed ? (
         <p className="fixture-meta">
-          <span className="tag tag-navy">{resultLabel(event.result)}</span>
+          <span className={resultClass(event.result)}>{resultLabel(event.result)}</span>
           {event.scorecard_url ? (
             <>
               {' '}

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { AuthContext, type AuthValue } from './auth-context.ts'
+import { canSwitchRole, readStoredViewRole, writeStoredViewRole } from '../lib/roleView.ts'
 import { supabase } from '../lib/supabase.ts'
-import { isClubRole, type Profile } from '../lib/types.ts'
+import { isClubRole, type ClubRole, type Profile } from '../lib/types.ts'
 import type { Session } from '@supabase/supabase-js'
 
 function parseProfile(value: unknown): Profile | null {
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile: Profile | null
     error: string | null
   } | null>(null)
+  const [viewChoice, setViewChoice] = useState<ClubRole | null>(() => readStoredViewRole())
 
   useEffect(() => {
     if (!client) return
@@ -70,9 +72,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [authReady, client, session])
 
-  const profile = session && profileState?.userId === session.user.id ? profileState.profile : null
+  const accountProfile = session && profileState?.userId === session.user.id ? profileState.profile : null
   const profileError = session && profileState?.userId === session.user.id ? profileState.error : null
   const profileReady = !session ? authReady : profileState?.userId === session.user.id
+  const allowed = canSwitchRole(session?.user.email)
+  const viewRole =
+    allowed && accountProfile && viewChoice && viewChoice !== accountProfile.role ? viewChoice : null
+  const profile = useMemo(() => {
+    if (!accountProfile) return null
+    if (!viewRole) return accountProfile
+    return { ...accountProfile, role: viewRole }
+  }, [accountProfile, viewRole])
 
   const signIn = useCallback(
     async (email: string, password: string) => {
@@ -92,17 +102,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw new Error(error.message)
   }, [client])
 
+  const setViewRole = useCallback(
+    (next: ClubRole | null) => {
+      if (!allowed || !accountProfile) return
+      const stored = next && next !== accountProfile.role ? next : null
+      setViewChoice(stored)
+      writeStoredViewRole(stored)
+    },
+    [allowed, accountProfile],
+  )
+
   const value = useMemo<AuthValue>(
     () => ({
       session,
       profile,
+      accountProfile,
       authReady,
       profileReady,
       profileError,
+      canSwitchRole: allowed && accountProfile !== null,
+      viewRole,
+      setViewRole,
       signIn,
       signOut,
     }),
-    [session, profile, authReady, profileReady, profileError, signIn, signOut],
+    [
+      session,
+      profile,
+      accountProfile,
+      authReady,
+      profileReady,
+      profileError,
+      allowed,
+      viewRole,
+      setViewRole,
+      signIn,
+      signOut,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
