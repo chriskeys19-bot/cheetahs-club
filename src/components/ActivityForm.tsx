@@ -1,31 +1,11 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { RecurrenceFields } from './RecurrenceFields.tsx'
-import { saveActivity, saveActivitySeries } from '../lib/activities.ts'
-import { pacificWallToIso } from '../lib/format.ts'
+import { RichTextField } from './RichTextField.tsx'
+import { saveActivity, saveActivitySeries, updateActivitySeries } from '../lib/activities.ts'
+import { isoToPacificWall, pacificWallToIso } from '../lib/format.ts'
+import { visibleTextLength } from '../lib/richText.ts'
 import { addCivilDays, civilDayOffset, expandCadence, type Cadence } from '../lib/recurrence.ts'
 import type { Activity, Team } from '../lib/types.ts'
-
-function wallParts(iso: string | null): { date: string; time: string } {
-  if (!iso) return { date: '', time: '' }
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).formatToParts(date)
-  const map: Record<string, string> = {}
-  for (const part of parts) {
-    if (part.type !== 'literal') map[part.type] = part.value
-  }
-  const hour = map.hour === '24' ? '00' : map.hour
-  if (!map.year || !map.month || !map.day || !hour || !map.minute) return { date: '', time: '' }
-  return { date: `${map.year}-${map.month}-${map.day}`, time: `${hour}:${map.minute}` }
-}
 
 export function ActivityForm({
   teams,
@@ -38,18 +18,21 @@ export function ActivityForm({
   onSaved: () => void
   onCancel: () => void
 }) {
-  const start = wallParts(initial?.starts_at ?? null)
-  const end = wallParts(initial?.ends_at ?? null)
+  const start = isoToPacificWall(initial?.starts_at ?? null)
+  const end = isoToPacificWall(initial?.ends_at ?? null)
   const titleId = useId()
   const sending = useRef(false)
   const [title, setTitle] = useState(initial?.title ?? '')
+  const [titleLength, setTitleLength] = useState(() => visibleTextLength(initial?.title ?? ''))
   const [description, setDescription] = useState(initial?.description ?? '')
+  const [descriptionLength, setDescriptionLength] = useState(() => visibleTextLength(initial?.description ?? ''))
   const [date, setDate] = useState(start.date)
   const [time, setTime] = useState(start.time)
   const [endDate, setEndDate] = useState(end.date)
   const [endTime, setEndTime] = useState(end.time)
   const [location, setLocation] = useState(initial?.location ?? '')
   const [teamId, setTeamId] = useState(initial?.team_id ?? '')
+  const [seriesScope, setSeriesScope] = useState<'one' | 'series'>('one')
   const [recurring, setRecurring] = useState(false)
   const [cadence, setCadence] = useState<Cadence>('weekly')
   const [recurMode, setRecurMode] = useState<'until' | 'count'>('count')
@@ -61,8 +44,8 @@ export function ActivityForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (sending.current) return
-    const nextTitle = title.trim()
-    if (nextTitle.length < 1 || nextTitle.length > 140) {
+    const nextTitle = title
+    if (titleLength < 1 || titleLength > 140 || title.length > 4000) {
       setError('Give the activity a title up to 140 characters.')
       return
     }
@@ -86,13 +69,12 @@ export function ActivityForm({
       setError('The end has to be after the start.')
       return
     }
-    const nextDescription = description.trim()
     const nextLocation = location.trim()
-    if (nextDescription.length > 2000 || nextLocation.length > 200) {
+    if (descriptionLength > 2000 || description.length > 16000 || nextLocation.length > 200) {
       setError('Shorten the description or location.')
       return
     }
-    const descriptionValue = nextDescription.length > 0 ? nextDescription : null
+    const descriptionValue = descriptionLength > 0 ? description : null
     const locationValue = nextLocation.length > 0 ? nextLocation : null
     const teamValue = teamId || null
     let seriesDates: string[] | null = null
@@ -151,17 +133,29 @@ export function ActivityForm({
     sending.current = true
     setBusy(true)
     setError(null)
-    const message = seriesDates
-      ? await saveActivitySeries(seriesRows, crypto.randomUUID())
-      : await saveActivity({
-          id: initial?.id,
-          title: nextTitle,
-          description: descriptionValue,
-          starts_at: startsAt,
-          ends_at: endsAt,
-          location: locationValue,
-          team_id: teamValue,
-        })
+    const message =
+      seriesDates
+        ? await saveActivitySeries(seriesRows, crypto.randomUUID())
+        : initial?.series_id && seriesScope === 'series'
+          ? await updateActivitySeries({
+              seriesId: initial.series_id,
+              anchorStartsAt: initial.starts_at,
+              title: nextTitle,
+              description: descriptionValue,
+              starts_at: startsAt,
+              ends_at: endsAt,
+              location: locationValue,
+              team_id: teamValue,
+            })
+          : await saveActivity({
+              id: initial?.id,
+              title: nextTitle,
+              description: descriptionValue,
+              starts_at: startsAt,
+              ends_at: endsAt,
+              location: locationValue,
+              team_id: teamValue,
+            })
     sending.current = false
     setBusy(false)
     if (message) {
@@ -178,23 +172,23 @@ export function ActivityForm({
         <h2>{initial ? 'Update this activity' : 'Add an activity'}</h2>
       </div>
       <p className="lede">Start and end times are Pacific (America/Los_Angeles).</p>
-      <label htmlFor={titleId}>Title</label>
-      <input
-        id={titleId}
-        name="title"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        maxLength={140}
+      <RichTextField
+        label="Title"
+        initial={initial?.title ?? ''}
+        compact
         required
+        onChange={(stored, length) => {
+          setTitle(stored)
+          setTitleLength(length)
+        }}
       />
-      <label htmlFor={`${titleId}-detail`}>Details</label>
-      <textarea
-        id={`${titleId}-detail`}
-        name="description"
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        maxLength={2000}
-        rows={4}
+      <RichTextField
+        label="Details"
+        initial={initial?.description ?? ''}
+        onChange={(stored, length) => {
+          setDescription(stored)
+          setDescriptionLength(length)
+        }}
       />
       <div className="form-grid two">
         <div>
@@ -240,6 +234,33 @@ export function ActivityForm({
           />
         </div>
       </div>
+      {initial?.series_id ? (
+        <fieldset className="recurrence">
+          <legend>Apply changes to</legend>
+          <label className="check-row">
+            <input
+              type="radio"
+              name={`${titleId}-series-scope`}
+              checked={seriesScope === 'one'}
+              onChange={() => setSeriesScope('one')}
+            />
+            This date
+          </label>
+          <label className="check-row">
+            <input
+              type="radio"
+              name={`${titleId}-series-scope`}
+              checked={seriesScope === 'series'}
+              onChange={() => setSeriesScope('series')}
+            />
+            Entire series
+          </label>
+          <p className="fine-print">
+            The whole series keeps each date, shifts those dates by the same number of days, and uses this
+            start time. Title, details, location, and side are shared.
+          </p>
+        </fieldset>
+      ) : null}
       {!initial ? (
         <RecurrenceFields
           idPrefix={titleId}

@@ -1,5 +1,7 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
+import { RichTextField } from './RichTextField.tsx'
 import { saveAnnouncement } from '../lib/announcements.ts'
+import { visibleTextLength } from '../lib/richText.ts'
 import type { Announcement } from '../lib/types.ts'
 
 export function AnnouncementForm({
@@ -11,11 +13,12 @@ export function AnnouncementForm({
   onSaved: () => void
   onCancel: () => void
 }) {
-  const titleId = useId()
-  const bodyId = useId()
   const sending = useRef(false)
+  const [draft, setDraft] = useState(0)
   const [title, setTitle] = useState(initial?.title ?? '')
+  const [titleLength, setTitleLength] = useState(() => visibleTextLength(initial?.title ?? ''))
   const [body, setBody] = useState(initial?.body ?? '')
+  const [bodyLength, setBodyLength] = useState(() => visibleTextLength(initial?.body ?? ''))
   const [pinned, setPinned] = useState(initial?.pinned ?? false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -23,10 +26,12 @@ export function AnnouncementForm({
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (sending.current) return
-    const nextTitle = title.trim()
-    const nextBody = body.trim()
-    if (nextTitle.length < 1 || nextTitle.length > 140 || nextBody.length < 1 || nextBody.length > 4000) {
+    if (titleLength < 1 || titleLength > 140 || bodyLength < 1 || bodyLength > 4000) {
       setError('Use a title up to 140 characters and a note up to 4000.')
+      return
+    }
+    if (title.length > 4000 || body.length > 30000) {
+      setError('That formatting is too long. Shorten the note.')
       return
     }
     sending.current = true
@@ -34,8 +39,8 @@ export function AnnouncementForm({
     setError(null)
     const message = await saveAnnouncement({
       id: initial?.id,
-      title: nextTitle,
-      body: nextBody,
+      title,
+      body,
       pinned,
     })
     sending.current = false
@@ -46,8 +51,11 @@ export function AnnouncementForm({
     }
     if (!initial) {
       setTitle('')
+      setTitleLength(0)
       setBody('')
+      setBodyLength(0)
       setPinned(false)
+      setDraft((value) => value + 1)
     }
     onSaved()
   }
@@ -58,24 +66,26 @@ export function AnnouncementForm({
         <p className="kicker">{initial ? 'Edit' : 'New'}</p>
         <h2>{initial ? 'Update this note' : 'Post an announcement'}</h2>
       </div>
-      <label htmlFor={titleId}>Title</label>
-      <input
-        id={titleId}
-        name="title"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        maxLength={140}
+      <RichTextField
+        key={`title-${initial?.id ?? 'new'}-${draft}`}
+        label="Title"
+        initial={draft > 0 ? '' : (initial?.title ?? '')}
+        compact
         required
+        onChange={(stored, length) => {
+          setTitle(stored)
+          setTitleLength(length)
+        }}
       />
-      <label htmlFor={bodyId}>Message</label>
-      <textarea
-        id={bodyId}
-        name="body"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        maxLength={4000}
-        rows={5}
+      <RichTextField
+        key={`body-${initial?.id ?? 'new'}-${draft}`}
+        label="Message"
+        initial={draft > 0 ? '' : (initial?.body ?? '')}
         required
+        onChange={(stored, length) => {
+          setBody(stored)
+          setBodyLength(length)
+        }}
       />
       <label className="check-row">
         <input
@@ -94,7 +104,7 @@ export function AnnouncementForm({
         ) : (
           <span />
         )}
-        <button type="submit" className="button button-gold" disabled={busy || title.trim().length < 1}>
+        <button type="submit" className="button button-gold" disabled={busy || titleLength < 1 || bodyLength < 1}>
           {busy ? 'Saving…' : initial ? 'Save changes' : 'Post'}
         </button>
       </div>

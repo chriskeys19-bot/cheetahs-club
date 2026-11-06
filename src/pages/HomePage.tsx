@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { GameMeta } from '../components/GameMeta.tsx'
+import { RichText } from '../components/RichText.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
@@ -217,8 +218,8 @@ export function HomePage() {
             <div className="tag-row">
               {notice.pinned ? <span className="tag tag-gold">Pinned</span> : null}
             </div>
-            <h3>{notice.title}</h3>
-            <p className="clamp">{notice.body}</p>
+            <RichText value={notice.title} as="h3" />
+            <RichText value={notice.body} className="clamp" />
           </article>
         ) : null}
         {boardReady && !notice && !boardError ? <p className="empty-copy">No announcements yet.</p> : null}
