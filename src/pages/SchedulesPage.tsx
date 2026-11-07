@@ -2,11 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
-import { GameMeta } from '../components/GameMeta.tsx'
+import { GameCard } from '../components/GameCard.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
-import { formatFixture } from '../lib/format.ts'
 import {
-  eventKindLabel,
   eventTitle,
   isCheetahsLeagueGame,
   isCompletedLeagueListing,
@@ -185,7 +183,7 @@ export function SchedulesPage() {
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins can add, edit, or remove events. Recurring adds one row per date. Players can read the list.
+        Captains and admins can add, edit, or remove events, and can add a YouTube link on a completed game. Recurring adds one row per date. Players can read the list and watch a posted video.
       </RoleNote>
       {staff && (composing || editing) ? (
         <FixtureForm
@@ -262,64 +260,28 @@ export function SchedulesPage() {
         {visible.length > 0 ? (
           <ul className="card-list tiles">
             {visible.map((row) => {
-              const when = formatFixture(row.game_date, row.start_time, row.end_time)
-              const played = asOf !== null && new Date(row.starts_at).getTime() < asOf
               const sideName = teamName(teams, row.team_id)
-              const mapHref = row.address
-                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.address)}`
-                : null
               return (
-                <li key={row.id} className={played ? 'info-card is-past' : 'info-card'}>
-                  <div className="tag-row">
-                    <span className="tag tag-gold">{when.time}</span>
-                    <span className="tag tag-navy">{eventKindLabel(row.event_type)}</span>
-                    <span className="tag">{sideName ? sideName.replace(/^Cheetahs /, '') : 'Club-wide'}</span>
-                    {row.series_id ? <span className="tag">Series</span> : null}
-                    {row.match_format ? <span className="tag">{row.match_format}</span> : null}
-                    {row.division ? <span className="tag">{row.division}</span> : null}
-                    {played ? <span className="tag">Played</span> : null}
-                  </div>
-                  <p className="fixture-date">{when.date}</p>
-                  <h3>{eventTitle(row, sideName)}</h3>
-                  <GameMeta event={row} teamSlug={teamSlug(teams, row.team_id)} asOf={asOf} />
-                  <p>{row.ground}</p>
-                  {row.address ? (
-                    <p className="fine-print">
-                      {row.address}
-                      {mapHref ? (
-                        <>
-                          {' · '}
-                          <a href={mapHref} target="_blank" rel="noreferrer">
-                            Map
-                          </a>
-                        </>
-                      ) : null}
-                    </p>
-                  ) : null}
-                  {row.notes ? <p className="fine-print">{row.notes}</p> : null}
-                  {staff ? (
-                    <div className="card-actions">
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() => {
-                          setComposing(false)
-                          setEditing(row)
-                        }}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="button button-quiet"
-                        onClick={() => onRemove(row)}
-                        disabled={pendingId === row.id}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : null}
-                </li>
+                <GameCard
+                  key={row.id}
+                  event={row}
+                  sideName={sideName}
+                  teamSlug={teamSlug(teams, row.team_id)}
+                  asOf={asOf}
+                  showNotes
+                  canEdit={staff}
+                  pending={pendingId === row.id}
+                  onEdit={() => {
+                    setComposing(false)
+                    setEditing(row)
+                  }}
+                  onRemove={() => onRemove(row)}
+                  onVideoSaved={(videoUrl) => {
+                    setRows((current) =>
+                      current?.map((item) => (item.id === row.id ? { ...item, video_url: videoUrl } : item)) ?? current,
+                    )
+                  }}
+                />
               )
             })}
           </ul>
