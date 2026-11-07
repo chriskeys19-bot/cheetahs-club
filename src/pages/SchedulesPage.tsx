@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
 import { GameMeta } from '../components/GameMeta.tsx'
+import { GameStreamControls } from '../components/GameStreamControls.tsx'
+import { useStreams } from '../components/streams-context.ts'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatFixture } from '../lib/format.ts'
 import {
@@ -55,6 +57,7 @@ function teamName(teams: Team[], teamId: string | null): string | null {
 
 export function SchedulesPage() {
   const { session, profile, profileReady } = useAuth()
+  const streams = useStreams()
   const staff = canManageClub(profile?.role)
   const [params, setParams] = useSearchParams()
   const side = parseSide(params.get('side'))
@@ -246,6 +249,11 @@ export function SchedulesPage() {
             {error}
           </p>
         ) : null}
+        {streams.error ? (
+          <p className="banner banner-error" role="alert">
+            {streams.error}
+          </p>
+        ) : null}
         {rows && (side === 'practice' || teams.length > 0) && visible.length === 0 && !error ? (
           <p className="empty-copy">
             {side === 'mine'
@@ -270,6 +278,15 @@ export function SchedulesPage() {
                 : null
               return (
                 <li key={row.id} className={played ? 'info-card is-past' : 'info-card'}>
+                  {isCheetahsLeagueGame(row, teamSlug(teams, row.team_id)) ? (
+                    <div className="card-stream-tools">
+                      <GameStreamControls
+                        event={row}
+                        teamName={sideName}
+                        teamSlug={teamSlug(teams, row.team_id)}
+                      />
+                    </div>
+                  ) : null}
                   <div className="tag-row">
                     <span className="tag tag-gold">{when.time}</span>
                     <span className="tag tag-navy">{eventKindLabel(row.event_type)}</span>

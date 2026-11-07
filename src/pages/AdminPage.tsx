@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { AdminNav } from '../components/AdminNav.tsx'
 import { FeedbackList } from '../components/FeedbackList.tsx'
+import { StreamKeysEditor } from '../components/StreamKeysEditor.tsx'
 import { loadFeedback } from '../lib/feedback.ts'
 import type { FeedbackRow } from '../lib/types.ts'
 
@@ -73,6 +74,7 @@ export function AdminPage() {
           </div>
         ) : null}
       </section>
+      {isAdmin ? <StreamKeysEditor /> : null}
     </div>
   )
 }

@@ -1,7 +1,8 @@
 import { Link } from 'react-router'
-import { GameMeta } from './GameMeta.tsx'
 import { formatFixture, formatPacificDate } from '../lib/format.ts'
-import { eventKindLabel, eventTitle } from '../lib/schedules.ts'
+import { eventKindLabel, eventTitle, isCheetahsLeagueGame } from '../lib/schedules.ts'
+import { GameMeta } from './GameMeta.tsx'
+import { GameStreamControls } from './GameStreamControls.tsx'
 import type { ScheduleEvent, Team } from '../lib/types.ts'
 
 function sideName(teams: Team[], teamId: string | null): string | null {
@@ -62,6 +63,11 @@ export function ThisWeek({
             const played = asOf !== null && new Date(event.starts_at).getTime() < asOf
             return (
               <li key={event.id} className={played ? 'info-card is-past' : 'info-card'}>
+                {isCheetahsLeagueGame(event, slug) ? (
+                  <div className="card-stream-tools">
+                    <GameStreamControls event={event} teamName={side} teamSlug={slug} />
+                  </div>
+                ) : null}
                 <Link className="card-title-link" to={scheduleHref(event, teams)}>
                   <div className="tag-row">
                     <span className="tag tag-gold">{when.time}</span>

@@ -145,6 +145,7 @@ export type ScheduleEvent = {
   dress_code: 'cheetahs_colors' | 'whites' | null
   result: 'win' | 'loss' | 'draw' | 'nr' | null
   scorecard_url: string | null
+  video_url: string | null
   match_status: 'scheduled' | 'completed'
 }
 

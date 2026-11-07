@@ -107,6 +107,7 @@ function parseEvents(value: unknown): ScheduleEvent[] {
       dress_code: typeof row.dress_code === 'string' && isDressCode(row.dress_code) ? row.dress_code : null,
       result: typeof row.result === 'string' && isGameResult(row.result) ? row.result : null,
       scorecard_url: typeof row.scorecard_url === 'string' ? row.scorecard_url : null,
+      video_url: typeof row.video_url === 'string' ? row.video_url : null,
       match_status: row.match_status === 'completed' ? 'completed' : 'scheduled',
     })
   }
@@ -114,7 +115,7 @@ function parseEvents(value: unknown): ScheduleEvent[] {
 }
 
 const columns =
-  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by, series_id, venue_side, ball_color, dress_code, result, scorecard_url, match_status'
+  'id, team_id, umpiring_team_id, game_date, start_time, end_time, starts_at, ends_at, match_format, ground, address, opponent, event_type, division, notes, created_by, series_id, venue_side, ball_color, dress_code, result, scorecard_url, video_url, match_status'
 
 export async function loadSchedule(): Promise<{ rows: ScheduleEvent[]; error: string | null }> {
   if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
