@@ -96,6 +96,28 @@ export function isLeagueCompleted(
   return new Date(event.starts_at).getTime() < asOf
 }
 
+const YOUTUBE_HOST = /^(?:[a-z0-9-]+\.)*(?:youtube\.com|youtu\.be)$/i
+
+/** Empty input clears the link. http(s) on youtube.com or youtu.be is kept. */
+export function parseVideoUrl(value: string): string | null | 'invalid' {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) return null
+  if (trimmed.length < 17 || trimmed.length > 500) return 'invalid'
+  let url: URL
+  try {
+    url = new URL(trimmed)
+  } catch {
+    return 'invalid'
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return 'invalid'
+  const authority = trimmed.slice(url.protocol.length + 2).split('/')[0] ?? ''
+  if (authority.includes('@') || authority.includes(':') || authority.includes('[')) return 'invalid'
+  if (url.username.length > 0 || url.password.length > 0 || url.port.length > 0) return 'invalid'
+  if (!YOUTUBE_HOST.test(url.hostname)) return 'invalid'
+  if (url.pathname === '/' || url.pathname.length === 0) return 'invalid'
+  return trimmed
+}
+
 export function parseScorecardUrl(value: string): string | null | 'invalid' {
   const trimmed = value.trim()
   if (trimmed.length === 0) return null

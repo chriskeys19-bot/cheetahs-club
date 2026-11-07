@@ -9,6 +9,7 @@ import {
   isGameResult,
   isVenueSide,
   parseScorecardUrl,
+  parseVideoUrl,
 } from '../lib/games.ts'
 import { expandCadence, type Cadence } from '../lib/recurrence.ts'
 import { saveFixture, saveFixtureSeries, type FixtureInput } from '../lib/schedules.ts'
@@ -63,6 +64,7 @@ export function FixtureForm({
   const [dressCode, setDressCode] = useState(initial?.dress_code ?? '')
   const [result, setResult] = useState(initial?.result ?? '')
   const [scorecard, setScorecard] = useState(initial?.scorecard_url ?? '')
+  const [video, setVideo] = useState(initial?.video_url ?? '')
   const [matchStatus, setMatchStatus] = useState<'scheduled' | 'completed'>(initial?.match_status ?? 'scheduled')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -132,6 +134,7 @@ export function FixtureForm({
     let nextDress: 'cheetahs_colors' | 'whites' | null = null
     let nextResult: 'win' | 'loss' | 'draw' | 'nr' | null = null
     let nextScorecard: string | null = null
+    let nextVideo: string | null = null
     let nextStatus: 'scheduled' | 'completed' = 'scheduled'
     if (eventType === 'league_game') {
       if (!isVenueSide(venueSide)) {
@@ -166,6 +169,12 @@ export function FixtureForm({
         return
       }
       nextScorecard = parsedScorecard
+      const parsedVideo = parseVideoUrl(video)
+      if (parsedVideo === 'invalid') {
+        setError('Paste a YouTube link (youtube.com or youtu.be), or leave it blank.')
+        return
+      }
+      nextVideo = parsedVideo
       nextStatus = matchStatus === 'completed' ? 'completed' : 'scheduled'
     }
     const draft: FixtureInput = {
@@ -186,6 +195,7 @@ export function FixtureForm({
       dress_code: nextDress,
       result: nextResult,
       scorecard_url: nextScorecard,
+      video_url: nextVideo,
       match_status: nextStatus,
     }
     let seriesDates: string[] | null = null
@@ -406,13 +416,27 @@ export function FixtureForm({
               placeholder="https://cricclubs.com/NCCA/results/..."
             />
           </div>
+          <div>
+            <label htmlFor={`${titleId}-video`}>Match video</label>
+            <input
+              id={`${titleId}-video`}
+              name="videoUrl"
+              type="url"
+              inputMode="url"
+              value={video}
+              onChange={(event) => setVideo(event.target.value)}
+              maxLength={500}
+              placeholder="https://youtu.be/…"
+            />
+          </div>
         </div>
       ) : null}
       {eventType === 'league_game' ? (
         <p className="fine-print">
           Alpha and Beta default to a white ball and Cheetahs colors. Gamma defaults to a pink ball and whites.
           Leave ball and dress on Team default unless this game is different. A past start counts as completed.
-          Paste the public CricClubs scorecard used for the stream. YouTube links are not stored.
+          Paste the public CricClubs scorecard used for the stream. The match video is an optional YouTube link
+          (youtube.com or youtu.be). It shows on completed games. Leave it blank to clear it.
         </p>
       ) : null}
       <label htmlFor={`${titleId}-ground`}>Ground</label>
