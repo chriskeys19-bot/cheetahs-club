@@ -49,3 +49,11 @@ verify_jwt = false
 
 [functions.splitwise-ensure-member]
 verify_jwt = true
+
+# request-stream-job queues a create, add_scorecard, or end job for a
+# signed-in member. The gateway requires a user JWT. The handler calls
+# getUser again, then request_stream_job. YouTube and CricClubs work stays
+# outside the app. Secrets, never source: STREAM_WEBHOOK_URL, STREAM_WEBHOOK_KEY.
+
+[functions.request-stream-job]
+verify_jwt = true

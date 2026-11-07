@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
 import { GameCard } from '../components/GameCard.tsx'
 import { MonthCalendar } from '../components/MonthCalendar.tsx'
+import { useStreams } from '../components/streams-context.ts'
 import { RoleNote } from '../components/RoleNote.tsx'
 import {
   eventTitle,
@@ -55,6 +56,7 @@ function teamName(teams: Team[], teamId: string | null): string | null {
 
 export function SchedulesPage() {
   const { session, profile, profileReady } = useAuth()
+  const streams = useStreams()
   const staff = canManageClub(profile?.role)
   const location = useLocation()
   const [params, setParams] = useSearchParams()
@@ -284,6 +286,11 @@ export function SchedulesPage() {
         {error ? (
           <p className="banner banner-error" role="alert">
             {error}
+          </p>
+        ) : null}
+        {streams.error ? (
+          <p className="banner banner-error" role="alert">
+            {streams.error}
           </p>
         ) : null}
         {rows && (side === 'practice' || teams.length > 0) && listed.length === 0 && !error ? (

@@ -5,6 +5,7 @@ import { canManageClub, displayName, roleLabel } from '../lib/types.ts'
 import { InstagramLink } from './InstagramLink.tsx'
 import { RoleBadge } from './RoleBadge.tsx'
 import { RoleSwitcher } from './RoleSwitcher.tsx'
+import { StreamsProvider } from './StreamsProvider.tsx'
 
 export function Shell() {
   const { session, profile, accountProfile, viewRole, setViewRole, canSwitchRole, signOut } = useAuth()
@@ -61,6 +62,7 @@ export function Shell() {
           <NavLink to="/announcements">Announcements</NavLink>
           <NavLink to="/activities">Activities</NavLink>
           <NavLink to="/schedules">Schedules</NavLink>
+          <NavLink to="/streams">Streams</NavLink>
           <NavLink to="/polls">Polls</NavLink>
           <NavLink to="/dues">Dues</NavLink>
           <NavLink to="/feedback">Feedback</NavLink>
@@ -84,9 +86,11 @@ export function Shell() {
           {error}
         </p>
       ) : null}
-      <main className="shell-main">
-        <Outlet />
-      </main>
+      <StreamsProvider>
+        <main className="shell-main">
+          <Outlet />
+        </main>
+      </StreamsProvider>
     </div>
   )
 }

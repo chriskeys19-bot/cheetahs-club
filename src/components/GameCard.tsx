@@ -1,5 +1,6 @@
 import { Link } from 'react-router'
 import { GameMeta } from './GameMeta.tsx'
+import { GameStreamControls } from './GameStreamControls.tsx'
 import { formatFixture } from '../lib/format.ts'
 import { ballLabel, dressLabel, effectiveKit, venueLabel } from '../lib/games.ts'
 import { eventKindLabel, eventTitle } from '../lib/schedules.ts'
@@ -113,6 +114,14 @@ export function GameCard({
             <span className={chip.tone === 'plain' ? 'tag' : `tag tag-${chip.tone}`}>{chip.label}</span>
           </li>
         ))}
+        <li className="game-chip-stream">
+          <GameStreamControls
+            event={event}
+            teamName={sideName}
+            teamSlug={teamSlug}
+            onVideoReady={onVideoSaved}
+          />
+        </li>
       </ul>
       <GameMeta event={event} asOf={asOf} canEdit={canEdit} onVideoSaved={onVideoSaved} />
       {showNotes && event.notes ? <p className="game-card-notes">{event.notes}</p> : null}

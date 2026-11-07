@@ -19,6 +19,8 @@ import { LoginPage } from './pages/LoginPage.tsx'
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx'
 import { PollsPage } from './pages/PollsPage.tsx'
 import { SchedulesPage } from './pages/SchedulesPage.tsx'
+import { StreamPreviewPage } from './pages/StreamPreviewPage.tsx'
+import { StreamsPage } from './pages/StreamsPage.tsx'
 import { SetupNotice } from './pages/SetupNotice.tsx'
 
 function SendRecoveryToReset() {
@@ -36,6 +38,16 @@ function SendRecoveryToReset() {
 }
 
 export default function App() {
+  if (import.meta.env.DEV && window.location.pathname.startsWith('/dev/stream-states')) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/dev/stream-states" element={<StreamPreviewPage />} />
+        </Routes>
+      </BrowserRouter>
+    )
+  }
+
   if (!supabase) return <SetupNotice />
 
   return (
@@ -44,6 +56,7 @@ export default function App() {
       <BrowserRouter>
         <SendRecoveryToReset />
         <Routes>
+          {import.meta.env.DEV ? <Route path="/dev/stream-states" element={<StreamPreviewPage />} /> : null}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
@@ -55,6 +68,7 @@ export default function App() {
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
+              <Route path="/streams" element={<StreamsPage />} />
               <Route path="/polls" element={<PollsPage />} />
               <Route path="/dues" element={<DuesPage />} />
               <Route path="/feedback" element={<FeedbackPage />} />
