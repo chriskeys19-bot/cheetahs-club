@@ -4,6 +4,7 @@ export const STREAM_STATUSES = [
   'creating',
   'awaiting_scorecard',
   'setting_up_overlay',
+  'updating_stream',
   'ready',
   'ending',
   'ended',
@@ -19,6 +20,11 @@ export const STREAM_CHECK_INTERVAL_MS = 10 * 60 * 1000
 export const CHECKING_LABEL = 'Checking CricketCrazeUSA for an existing stream…'
 
 export const NOT_FOUND_LABEL = 'No live stream found on CricketCrazeUSA. Create one?'
+
+export const UPDATING_STREAM_LABEL = 'Overlay ready · finishing stream updates…'
+
+/** CricClubs overlay page. CC_1712 is the fixed overlay build, not the club id. */
+export const CRICCLUBS_OVERLAY_PAGE = 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html'
 
 export type StreamAction = (typeof STREAM_ACTIONS)[number]
 
@@ -71,6 +77,7 @@ export type StreamPhase =
   | 'creating'
   | 'scorecard'
   | 'overlay'
+  | 'updating'
   | 'ready'
   | 'ending'
   | 'ended'
@@ -100,6 +107,7 @@ export function streamStatusLabel(status: StreamStatus): string {
   if (status === 'creating') return 'Creating stream'
   if (status === 'awaiting_scorecard') return 'Awaiting scorecard'
   if (status === 'setting_up_overlay') return 'Adding scorecard and overlay'
+  if (status === 'updating_stream') return 'Overlay ready'
   if (status === 'ready') return 'Ready'
   if (status === 'ending') return 'Ending stream'
   if (status === 'ended') return 'Ended'
@@ -125,6 +133,62 @@ export function parseStreamScorecardUrl(value: string): string | null | 'invalid
   return url.toString()
 }
 
+function queryId(url: URL, name: string): string | null {
+  for (const [key, value] of url.searchParams) {
+    if (key.toLowerCase() !== name) continue
+    if (!/^[0-9]{1,12}$/.test(value)) return null
+    return value
+  }
+  return null
+}
+
+/** Build the CricClubs overlay when the scorecard URL already has matchId and clubId. */
+export function overlayUrlFromScorecard(value: string): string | null {
+  const parsed = parseStreamScorecardUrl(value)
+  if (!parsed || parsed === 'invalid') return null
+  let url: URL
+  try {
+    url = new URL(parsed)
+  } catch {
+    return null
+  }
+  const matchId = queryId(url, 'matchid')
+  const clubId = queryId(url, 'clubid')
+  if (!matchId || !clubId) return null
+  return `${CRICCLUBS_OVERLAY_PAGE}?matchId=${matchId}&clubId=${clubId}`
+}
+
+export function preferredOverlayUrl(
+  stream: Pick<GameStream, 'overlay_short_url' | 'overlay_url'> | null,
+): string | null {
+  const short = stream?.overlay_short_url?.trim() ?? ''
+  if (short) return short
+  const full = stream?.overlay_url?.trim() ?? ''
+  return full || null
+}
+
+/** Show a client-built overlay until the saved row catches up, without keeping a stale short link. */
+export function streamWithEarlyOverlay(stream: GameStream | null, earlyOverlay: string | null): GameStream | null {
+  if (!stream || !earlyOverlay || stream.overlay_url === earlyOverlay) return stream
+  const workerPublished =
+    stream.status === 'updating_stream' ||
+    stream.status === 'ready' ||
+    stream.status === 'failed' ||
+    stream.status === 'ended'
+  if (workerPublished && (stream.overlay_url || stream.overlay_short_url)) return stream
+  return { ...stream, overlay_url: earlyOverlay, overlay_short_url: null }
+}
+
+export function streamNeedsLiveRefresh(
+  streams: Pick<GameStream, 'status'>[],
+  jobs: Pick<StreamJob, 'action' | 'status'>[],
+): boolean {
+  if (streams.some((row) => row.status === 'setting_up_overlay' || row.status === 'updating_stream')) return true
+  return jobs.some(
+    (job) => job.action === 'add_scorecard' && (job.status === 'pending' || job.status === 'running'),
+  )
+}
+
 export function parseHttpsUrl(value: string): string | null | 'invalid' {
   const trimmed = value.trim()
   if (trimmed.length === 0) return null
@@ -139,16 +203,36 @@ export function parseHttpsUrl(value: string): string | null | 'invalid' {
   return trimmed
 }
 
+function overlayIsReady(
+  stream: Pick<GameStream, 'overlay_short_url' | 'overlay_url'> | null,
+): boolean {
+  return preferredOverlayUrl(stream) !== null
+}
+
 export function liveStreamMessage(
   stream: Pick<
     GameStream,
-    'status' | 'last_error' | 'youtube_url' | 'youtube_video_id' | 'scorecard_url' | 'checked_at'
+    | 'status'
+    | 'last_error'
+    | 'youtube_url'
+    | 'youtube_video_id'
+    | 'scorecard_url'
+    | 'overlay_url'
+    | 'overlay_short_url'
+    | 'checked_at'
   > | null,
   job: Pick<StreamJob, 'status' | 'action' | 'error'> | null,
 ): StreamLive {
   const openCheck = job && (job.status === 'pending' || job.status === 'running') && job.action === 'check'
   if (openCheck || stream?.status === 'checking') {
     return { phase: 'checking', label: CHECKING_LABEL, busy: true }
+  }
+  if (stream?.status === 'updating_stream') {
+    return { phase: 'updating', label: UPDATING_STREAM_LABEL, busy: true }
+  }
+  const scorecardJobOpen = job?.action === 'add_scorecard' && (job.status === 'pending' || job.status === 'running')
+  if (scorecardJobOpen && overlayIsReady(stream)) {
+    return { phase: 'updating', label: UPDATING_STREAM_LABEL, busy: true }
   }
   if (job?.status === 'pending') return { phase: 'queued', label: 'Queued', busy: true }
   if (job?.status === 'running') {
@@ -162,6 +246,7 @@ export function liveStreamMessage(
   }
   if (stream.status === 'creating') return { phase: 'creating', label: 'Creating stream…', busy: true }
   if (stream.status === 'setting_up_overlay') {
+    if (overlayIsReady(stream)) return { phase: 'updating', label: UPDATING_STREAM_LABEL, busy: true }
     return { phase: 'overlay', label: 'Adding scorecard and overlay…', busy: true }
   }
   if (stream.status === 'ending') return { phase: 'ending', label: 'Ending stream…', busy: true }
@@ -197,6 +282,7 @@ export function isPublicStreamStatus(status: StreamStatus): boolean {
     status === 'creating' ||
     status === 'awaiting_scorecard' ||
     status === 'setting_up_overlay' ||
+    status === 'updating_stream' ||
     status === 'ready' ||
     status === 'ending'
   )

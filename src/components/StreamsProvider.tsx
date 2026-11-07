@@ -7,7 +7,7 @@ import {
   upsertById,
 } from '../lib/streams.ts'
 import { supabase } from '../lib/supabase.ts'
-import type { GameStream, StreamJob, StreamKey } from '../lib/streamStatus.ts'
+import { streamNeedsLiveRefresh, type GameStream, type StreamJob, type StreamKey } from '../lib/streamStatus.ts'
 import { StreamsContext } from './streams-context.ts'
 
 export function StreamsProvider({ children }: { children: ReactNode }) {
@@ -25,6 +25,14 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
     setError(next.error)
     setReady(true)
   }, [])
+
+  useEffect(() => {
+    if (!streamNeedsLiveRefresh(streams, jobs)) return
+    const timer = window.setInterval(() => {
+      void reload()
+    }, 3000)
+    return () => window.clearInterval(timer)
+  }, [streams, jobs, reload])
 
   useEffect(() => {
     let cancelled = false
