@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx'
+import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
 import { clearOauthNotice, peekOauthNotice, startGoogleSignIn, type GoogleFinishResult } from '../lib/googleAuth.ts'
 
@@ -72,7 +73,7 @@ export function LoginPage() {
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
+        <Crest width={200} alt="Cheetahs Cricket Club crest" />
         <div>
           <p className="hero-kicker">Members</p>
           <h1>Cheetahs Cricket Club</h1>

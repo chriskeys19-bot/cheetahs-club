@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { canManageClub, displayName, roleLabel } from '../lib/types.ts'
+import { Crest } from './Crest.tsx'
 import { InstagramLink } from './InstagramLink.tsx'
 import { RoleBadge } from './RoleBadge.tsx'
 import { RoleSwitcher } from './RoleSwitcher.tsx'
@@ -33,7 +34,7 @@ export function Shell() {
       <header className="topbar">
         <div className="topbar-brand">
           <NavLink to="/" className="brand" end>
-            <img src="/crest.jpg" alt="" width={56} height={56} />
+            <Crest width={56} alt="" />
             <span className="brand-text">
               <span className="brand-kicker">Cheetahs</span>
               <span className="brand-name">Cricket Club</span>

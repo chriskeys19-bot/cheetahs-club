@@ -1,7 +1,9 @@
+import { Crest } from './Crest.tsx'
+
 export function Splash({ label }: { label: string }) {
   return (
     <div className="splash" role="status">
-      <img src="/crest.jpg" alt="" width={112} height={112} />
+      <Crest width={112} alt="" />
       <p>{label}</p>
     </div>
   )

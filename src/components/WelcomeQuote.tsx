@@ -12,6 +12,7 @@ import {
   type QuoteView,
 } from '../lib/dailyQuote.ts'
 import { CLUB_QUOTES } from '../lib/quotes.ts'
+import { Crest } from './Crest.tsx'
 
 function openWelcome(): QuoteView {
   const today = localDayKey(new Date())
@@ -51,6 +52,7 @@ export function WelcomeQuote() {
 
   return (
     <section className="welcome-quote" aria-labelledby="welcome-quote-heading">
+      <Crest className="welcome-crest" width={84} alt="" />
       <p className="welcome-quote-kicker">A word for the day</p>
       <h2 id="welcome-quote-heading">Hello, {name}</h2>
       <blockquote className="welcome-quote-body">

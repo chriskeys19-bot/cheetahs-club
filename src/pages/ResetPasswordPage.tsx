@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
 import { passwordProblem, passwordUpdateMessage, recoveryMessage, verifyRecoveryHash } from '../lib/passwordReset.ts'
 import { establishRecoverySession, recoveryBoot, supabase } from '../lib/supabase.ts'
@@ -201,7 +202,7 @@ function ResetFrame({
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
+        <Crest width={200} alt="Cheetahs Cricket Club crest" />
         <div>
           <p className="hero-kicker">{kicker}</p>
           <h1>{title}</h1>

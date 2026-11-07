@@ -1,6 +1,6 @@
 # Cheetahs Cricket Club
 
-Clubhouse for Cheetahs Cricket Club. Members sign in with Google or with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.jpg` is the brand mark.
+Clubhouse for Cheetahs Cricket Club. Members sign in with Google or with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.png` is the brand mark.
 
 Feedback is stored in Supabase. The browser does not call Google Sheets. See [docs/feedback-sync.md](docs/feedback-sync.md) for the sheet columns a later sync should write.
 
@@ -15,7 +15,7 @@ The Supabase project is [https://lutcbvzunjcosncvdyke.supabase.co](https://lutcb
 
 ## Brand
 
-Sampled from `public/crest.jpg` (region medians) and stored as CSS variables in `src/index.css`.
+Sampled from `public/crest.png` (region medians) and stored as CSS variables in `src/index.css`.
 
 | Sample | Hex | Token |
 | --- | --- | --- |
