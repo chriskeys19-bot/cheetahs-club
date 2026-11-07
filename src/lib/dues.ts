@@ -413,3 +413,41 @@ export async function removePayment(id: string): Promise<string | null> {
   const { data, error } = await supabase.from('dues_payments').delete().eq('id', id).select('id')
   return changed({ data, error }, 'That payment could not be removed.')
 }
+
+/** The signed-in member's own open or paid dues in a civil-date range. */
+export async function loadOwnDuesBetween(
+  userId: string,
+  from: string,
+  to: string,
+): Promise<{ rows: DuesAssessment[]; error: string | null }> {
+  if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
+  const { data, error } = await supabase
+    .from('dues_assessments')
+    .select(assessmentColumns)
+    .eq('member_id', userId)
+    .gte('due_date', from)
+    .lte('due_date', to)
+    .in('status', ['open', 'paid'])
+    .order('due_date', { ascending: true })
+    .limit(200)
+  if (error) return { rows: [], error: error.message }
+  return { rows: parseAssessments(data), error: null }
+}
+
+/** Expenses in a civil-date range. RLS still decides which rows come back. */
+export async function loadExpensesBetween(
+  from: string,
+  to: string,
+): Promise<{ rows: Expense[]; error: string | null }> {
+  if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
+  const { data, error } = await supabase
+    .from('expenses')
+    .select(expenseColumns)
+    .is('archived_at', null)
+    .gte('expense_date', from)
+    .lte('expense_date', to)
+    .order('expense_date', { ascending: true })
+    .limit(200)
+  if (error) return { rows: [], error: error.message }
+  return { rows: parseExpenses(data), error: null }
+}

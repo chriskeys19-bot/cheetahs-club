@@ -67,17 +67,7 @@ export function GameMeta({
             Scorecard
           </a>
         ) : null}
-        {event.video_url ? (
-          <a
-            className="watch-video"
-            href={event.video_url}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Watch match video"
-          >
-            <YouTubePlayIcon />
-          </a>
-        ) : null}
+        {event.video_url ? <WatchVideoLink href={event.video_url} /> : null}
       </p>
       {canEdit && !open ? (
         <button
@@ -136,6 +126,14 @@ export function GameMeta({
         </form>
       ) : null}
     </div>
+  )
+}
+
+export function WatchVideoLink({ href }: { href: string }) {
+  return (
+    <a className="watch-video" href={href} target="_blank" rel="noreferrer" aria-label="Watch match video">
+      <YouTubePlayIcon />
+    </a>
   )
 }
 

@@ -5,6 +5,7 @@ import { PollForm } from '../components/PollForm.tsx'
 import { RichText } from '../components/RichText.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { formatPacific } from '../lib/format.ts'
+import { scrollToLocationHash } from '../lib/scrollHash.ts'
 import { visibleText } from '../lib/richText.ts'
 import { castVote, loadPollBoard, pollIsOpen, removePoll, setPollStatus, type PollBoard } from '../lib/polls.ts'
 import { canEditItem, canManageClub, type Poll, type PollOption } from '../lib/types.ts'
@@ -72,6 +73,13 @@ export function PollsPage() {
   }, [board])
 
   const editing = board?.polls.find((poll) => poll.id === editingId) ?? null
+
+  useEffect(() => {
+    if (!board) return
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    if (!id.startsWith('poll-')) return
+    scrollToLocationHash()
+  }, [board])
 
   async function onVote(poll: Poll) {
     const userId = session?.user.id
@@ -256,7 +264,7 @@ function PollSection({
             poll.status === 'closed' && (!poll.closes_at || new Date(poll.closes_at).getTime() > asOf)
           const manageable = canRevise(poll)
           return (
-            <li key={poll.id} className="info-card">
+            <li id={`poll-${poll.id}`} key={poll.id} className="info-card">
               <div className="tag-row">
                 <span className={open ? 'tag tag-gold' : 'tag'}>{open ? 'Open' : 'Closed'}</span>
                 <span className="fine-print">{total} {total === 1 ? 'vote' : 'votes'}</span>
