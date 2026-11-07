@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx'
+import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
 import { startGoogleSignIn } from '../lib/googleAuth.ts'
 import { acceptInvite, previewInvite, type InvitePreview } from '../lib/invites.ts'
@@ -91,7 +92,7 @@ export function JoinPage() {
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
+        <Crest width={200} alt="Cheetahs Cricket Club crest" />
         <div>
           <p className="hero-kicker">Join</p>
           <h1>Cheetahs Cricket Club</h1>
@@ -169,7 +170,7 @@ function JoinUnavailable({ message }: { message: string }) {
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
+        <Crest width={200} alt="Cheetahs Cricket Club crest" />
         <div>
           <p className="hero-kicker">Join</p>
           <h1>Cheetahs Cricket Club</h1>

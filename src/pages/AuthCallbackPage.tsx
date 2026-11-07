@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
 import {
   clearInviteToken,
@@ -148,7 +149,7 @@ function CallbackShell({ kicker, copy, children }: { kicker: string; copy: strin
   return (
     <div className="login-screen">
       <section className="login-hero">
-        <img src="/crest.jpg" alt="Cheetahs Cricket Club crest" width={168} height={168} />
+        <Crest width={200} alt="Cheetahs Cricket Club crest" />
         <div>
           <p className="hero-kicker">{kicker}</p>
           <h1>Cheetahs Cricket Club</h1>

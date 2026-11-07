@@ -1,5 +1,5 @@
 :root {
-  /* Sampled from public/crest.jpg. Medians of the named region. */
+  /* Sampled from the crest in public/crest.png. Medians of the named region. */
   --crest-navy: #28264c;
   --crest-gold: #d4a05c;
   --crest-gold-bright: #d8a050;
@@ -891,12 +891,12 @@ a.home-feedback > span:first-child {
 }
 
 .brand img {
-  width: 56px;
+  width: auto;
   height: 56px;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 2px solid var(--color-accent);
-  background: var(--color-surface-raised);
+  object-fit: contain;
+  border-radius: 10px;
+  border: 2px solid var(--crest-gold);
+  background: var(--crest-cream);
 }
 
 .brand-text {
@@ -1165,11 +1165,11 @@ a.home-feedback > span:first-child {
 
 .splash img {
   width: 112px;
-  height: 112px;
-  object-fit: cover;
-  border-radius: 18px;
-  border: 3px solid var(--color-accent);
-  background: var(--color-surface-raised);
+  height: auto;
+  object-fit: contain;
+  border-radius: 14px;
+  border: 3px solid var(--crest-gold);
+  background: var(--crest-cream);
 }
 
 .splash p,
@@ -1208,9 +1208,10 @@ a.home-feedback > span:first-child {
 .login-hero img {
   width: min(220px, 46vw);
   height: auto;
-  border-radius: 24px;
-  border: 3px solid var(--color-accent);
-  background: var(--color-surface-raised);
+  object-fit: contain;
+  border-radius: 16px;
+  border: 3px solid var(--crest-gold);
+  background: var(--crest-cream);
 }
 
 .login-hero h1,
@@ -2299,6 +2300,20 @@ textarea.note-field {
   border: 1px solid color-mix(in srgb, var(--crest-gold) 62%, var(--crest-navy));
   border-top: 4px solid var(--crest-gold);
   box-shadow: var(--shadow);
+}
+
+.welcome-crest {
+  display: block;
+  width: 84px;
+}
+
+.welcome-crest img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 2px solid var(--crest-gold);
+  background: var(--crest-cream);
 }
 
 .welcome-quote-kicker {
