@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { parseVideoUrl } from '../lib/games.ts'
 import {
   STREAM_STATUSES,
   parseHttpsUrl,
@@ -24,10 +25,13 @@ export function StreamDialog({
   canEditStatus,
   requestError,
   pending,
+  pasteOpen = false,
   onClose,
   onCreate,
   onScorecard,
   onRetry,
+  onCheckAgain,
+  onPaste,
   onSave,
 }: {
   title: string
@@ -40,10 +44,13 @@ export function StreamDialog({
   canEditStatus: boolean
   requestError: string | null
   pending: boolean
+  pasteOpen?: boolean
   onClose: () => void
   onCreate: (streamKeyName: string) => void
   onScorecard: (url: string) => void
   onRetry: () => void
+  onCheckAgain: () => void
+  onPaste: (youtubeUrl: string) => void
   onSave: (field: StreamTextField, value: string) => void
 }) {
   const titleId = useId()
@@ -52,6 +59,8 @@ export function StreamDialog({
   const [pickedKey, setPickedKey] = useState<string | null>(null)
   const keyName = pickedKey && keys.some((key) => key.name === pickedKey) ? pickedKey : (keys[0]?.name ?? '')
   const [scorecard, setScorecard] = useState('')
+  const [pasting, setPasting] = useState(pasteOpen)
+  const [youtubeDraft, setYoutubeDraft] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -152,10 +161,23 @@ export function StreamDialog({
     return null
   }
 
-  const showCreate = !loading && live.phase === 'create'
+  const showSetup = !loading && (live.phase === 'create' || live.phase === 'check_failed')
   const showScorecard = !loading && live.phase === 'scorecard'
-  const showRetry = !loading && live.phase === 'failed'
-  const fields = stream && live.phase !== 'create' ? visibleFields(stream) : []
+  const showRetry = !loading && (live.phase === 'failed' || live.phase === 'check_failed')
+  const fields =
+    stream && live.phase !== 'create' && live.phase !== 'checking' && live.phase !== 'check_failed'
+      ? visibleFields(stream)
+      : []
+
+  function submitPaste() {
+    const parsed = parseVideoUrl(youtubeDraft)
+    if (parsed === null || parsed === 'invalid') {
+      setFormError('Paste a YouTube link (youtube.com or youtu.be).')
+      return
+    }
+    setFormError(null)
+    onPaste(parsed.replace(/^http:\/\//i, 'https://'))
+  }
 
   return (
     <div
@@ -201,31 +223,71 @@ export function StreamDialog({
             {formError}
           </p>
         ) : null}
-        {showCreate ? (
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault()
-              submitCreate()
-            }}
-          >
-            <p>No live stream set up for this game yet. Create one?</p>
-            <label>
-              Stream key
-              <select value={keyName} onChange={(event) => setPickedKey(event.target.value)} disabled={pending}>
-                {keys.length === 0 ? <option value="">No keys yet</option> : null}
-                {keys.map((key) => (
-                  <option key={key.id} value={key.name}>
-                    {key.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="fine-print">The list shows the key name only. The key itself stays on the device.</p>
-            <button type="submit" className="button button-gold" disabled={pending || keys.length === 0}>
-              {pending ? 'Queuing…' : 'Create stream'}
+        {showRetry ? (
+          <button type="button" className="button button-navy" onClick={onRetry} disabled={pending}>
+            {pending ? 'Queuing…' : 'Retry'}
+          </button>
+        ) : null}
+        {showSetup ? (
+          <div className="form-grid">
+            {live.phase === 'check_failed' ? <p>Or create a new stream.</p> : null}
+            <form
+              className="form-grid"
+              onSubmit={(event) => {
+                event.preventDefault()
+                submitCreate()
+              }}
+            >
+              <label>
+                Stream key
+                <select value={keyName} onChange={(event) => setPickedKey(event.target.value)} disabled={pending}>
+                  {keys.length === 0 ? <option value="">No keys yet</option> : null}
+                  {keys.map((key) => (
+                    <option key={key.id} value={key.name}>
+                      {key.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="fine-print">The list shows the key name only. The key itself stays on the device.</p>
+              <button type="submit" className="button button-gold" disabled={pending || keys.length === 0}>
+                {pending ? 'Queuing…' : 'Create stream'}
+              </button>
+            </form>
+            <button type="button" className="text-button" onClick={() => setPasting((open) => !open)}>
+              Already have a stream? Paste YouTube link
             </button>
-          </form>
+            {pasting ? (
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  submitPaste()
+                }}
+              >
+                <label>
+                  YouTube link
+                  <input
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    placeholder="https://youtu.be/…"
+                    value={youtubeDraft}
+                    onChange={(event) => setYoutubeDraft(event.target.value)}
+                    disabled={pending}
+                  />
+                </label>
+                <button type="submit" className="button button-navy" disabled={pending}>
+                  {pending ? 'Saving…' : 'Save link'}
+                </button>
+              </form>
+            ) : null}
+            {stream?.checked_at ? (
+              <button type="button" className="text-button" onClick={onCheckAgain} disabled={pending}>
+                Check again
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {showScorecard ? (
           <form
@@ -251,11 +313,6 @@ export function StreamDialog({
               {pending ? 'Queuing…' : 'Add scorecard'}
             </button>
           </form>
-        ) : null}
-        {showRetry ? (
-          <button type="button" className="button button-navy" onClick={onRetry} disabled={pending}>
-            {pending ? 'Queuing…' : 'Retry'}
-          </button>
         ) : null}
         {stream?.whatsapp_message ? (
           <button

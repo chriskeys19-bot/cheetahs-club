@@ -1,4 +1,4 @@
-export const STREAM_ACTIONS = ['create', 'add_scorecard', 'end'] as const
+export const STREAM_ACTIONS = ['check', 'create', 'add_scorecard', 'end'] as const
 
 export type StreamAction = (typeof STREAM_ACTIONS)[number]
 
@@ -38,7 +38,7 @@ export function readStreamJobRequest(body: unknown): StreamJobRequest | string {
   if (typeof scheduleEventId !== 'string' || !UUID_PATTERN.test(scheduleEventId)) {
     return 'Choose a game, then try again.'
   }
-  if (action !== 'create' && action !== 'add_scorecard' && action !== 'end') {
+  if (action !== 'check' && action !== 'create' && action !== 'add_scorecard' && action !== 'end') {
     return 'Choose a stream action.'
   }
   if (
@@ -50,6 +50,7 @@ export function readStreamJobRequest(body: unknown): StreamJobRequest | string {
     return 'Stream key values are not stored.'
   }
   const id = scheduleEventId.toLowerCase()
+  if (action === 'check') return { scheduleEventId: id, action, payload: {} }
   if (action === 'create') {
     if (typeof record.streamKeyName !== 'string') return 'Choose a stream key.'
     const name = record.streamKeyName.trim()

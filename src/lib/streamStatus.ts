@@ -1,5 +1,6 @@
 export const STREAM_STATUSES = [
   'none',
+  'checking',
   'creating',
   'awaiting_scorecard',
   'setting_up_overlay',
@@ -11,7 +12,13 @@ export const STREAM_STATUSES = [
 
 export type StreamStatus = (typeof STREAM_STATUSES)[number]
 
-export const STREAM_ACTIONS = ['create', 'add_scorecard', 'end'] as const
+export const STREAM_ACTIONS = ['check', 'create', 'add_scorecard', 'end'] as const
+
+export const STREAM_CHECK_INTERVAL_MS = 10 * 60 * 1000
+
+export const CHECKING_LABEL = 'Checking CricketCrazeUSA for an existing stream…'
+
+export const NOT_FOUND_LABEL = 'No live stream found on CricketCrazeUSA. Create one?'
 
 export type StreamAction = (typeof STREAM_ACTIONS)[number]
 
@@ -32,6 +39,7 @@ export type GameStream = {
   whatsapp_message: string | null
   last_error: string | null
   requested_by: string | null
+  checked_at: string | null
   created_at: string
   updated_at: string
 }
@@ -57,6 +65,8 @@ export type StreamKey = {
 
 export type StreamPhase =
   | 'create'
+  | 'checking'
+  | 'check_failed'
   | 'queued'
   | 'creating'
   | 'scorecard'
@@ -77,7 +87,7 @@ export function isStreamStatus(value: unknown): value is StreamStatus {
 }
 
 export function isStreamAction(value: unknown): value is StreamAction {
-  return value === 'create' || value === 'add_scorecard' || value === 'end'
+  return value === 'check' || value === 'create' || value === 'add_scorecard' || value === 'end'
 }
 
 export function isJobStatus(value: unknown): value is JobStatus {
@@ -86,6 +96,7 @@ export function isJobStatus(value: unknown): value is JobStatus {
 
 export function streamStatusLabel(status: StreamStatus): string {
   if (status === 'none') return 'No stream'
+  if (status === 'checking') return 'Checking CricketCrazeUSA'
   if (status === 'creating') return 'Creating stream'
   if (status === 'awaiting_scorecard') return 'Awaiting scorecard'
   if (status === 'setting_up_overlay') return 'Adding scorecard and overlay'
@@ -129,16 +140,26 @@ export function parseHttpsUrl(value: string): string | null | 'invalid' {
 }
 
 export function liveStreamMessage(
-  stream: Pick<GameStream, 'status' | 'last_error' | 'youtube_url' | 'youtube_video_id' | 'scorecard_url'> | null,
+  stream: Pick<
+    GameStream,
+    'status' | 'last_error' | 'youtube_url' | 'youtube_video_id' | 'scorecard_url' | 'checked_at'
+  > | null,
   job: Pick<StreamJob, 'status' | 'action' | 'error'> | null,
 ): StreamLive {
+  const openCheck = job && (job.status === 'pending' || job.status === 'running') && job.action === 'check'
+  if (openCheck || stream?.status === 'checking') {
+    return { phase: 'checking', label: CHECKING_LABEL, busy: true }
+  }
   if (job?.status === 'pending') return { phase: 'queued', label: 'Queued', busy: true }
   if (job?.status === 'running') {
     if (job.action === 'create') return { phase: 'creating', label: 'Creating stream…', busy: true }
     if (job.action === 'end') return { phase: 'ending', label: 'Ending stream…', busy: true }
     return { phase: 'overlay', label: 'Adding scorecard and overlay…', busy: true }
   }
-  if (!stream || stream.status === 'none') return { phase: 'create', label: 'No live stream yet', busy: false }
+  if (!stream || stream.status === 'none') {
+    if (stream?.checked_at) return { phase: 'create', label: NOT_FOUND_LABEL, busy: false }
+    return { phase: 'create', label: 'No live stream yet', busy: false }
+  }
   if (stream.status === 'creating') return { phase: 'creating', label: 'Creating stream…', busy: true }
   if (stream.status === 'setting_up_overlay') {
     return { phase: 'overlay', label: 'Adding scorecard and overlay…', busy: true }
@@ -146,7 +167,11 @@ export function liveStreamMessage(
   if (stream.status === 'ending') return { phase: 'ending', label: 'Ending stream…', busy: true }
   if (stream.status === 'failed') {
     const detail = stream.last_error?.trim() || job?.error?.trim() || 'Something went wrong.'
-    return { phase: 'failed', label: `Setup failed: ${detail}`, busy: false }
+    const label = `Setup failed: ${detail}`
+    if (job?.action === 'check' && !stream.youtube_url && !stream.youtube_video_id) {
+      return { phase: 'check_failed', label, busy: false }
+    }
+    return { phase: 'failed', label, busy: false }
   }
   if (stream.status === 'ended') return { phase: 'ended', label: 'Ended', busy: false }
   const hasBroadcast = Boolean(stream.youtube_url || stream.youtube_video_id)
@@ -187,12 +212,27 @@ export function shouldAutoEnd(
     stream.status === 'ended' ||
     stream.status === 'ending' ||
     stream.status === 'none' ||
+    stream.status === 'checking' ||
     stream.status === 'creating'
   ) {
     return false
   }
   if (stream.status === 'failed' && !stream.youtube_url && !stream.youtube_video_id) return false
   return true
+}
+
+export function shouldAutoCheck(
+  stream: Pick<GameStream, 'status' | 'checked_at' | 'youtube_url' | 'youtube_video_id'> | null,
+  jobOpen: boolean,
+  now: number,
+): boolean {
+  if (jobOpen) return false
+  if (stream && (stream.youtube_url || stream.youtube_video_id)) return false
+  if (stream && stream.status !== 'none') return false
+  if (!stream?.checked_at) return true
+  const checked = new Date(stream.checked_at).getTime()
+  if (!Number.isFinite(checked)) return true
+  return now - checked > STREAM_CHECK_INTERVAL_MS
 }
 
 export function retryAction(
