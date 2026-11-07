@@ -2666,6 +2666,10 @@ textarea.note-field {
   padding: 24px 16px 40px;
 }
 
+.stream-sheet .text-button {
+  justify-self: start;
+}
+
 @keyframes stream-spin {
   to {
     transform: rotate(360deg);

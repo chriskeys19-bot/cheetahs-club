@@ -1,4 +1,5 @@
 import { supabase } from './supabase.ts'
+import { parseVideoUrl } from './games.ts'
 import {
   isJobStatus,
   isStreamAction,
@@ -12,7 +13,7 @@ import {
 } from './streamStatus.ts'
 
 const STREAM_COLUMNS =
-  'id, schedule_event_id, status, stream_key_name, youtube_video_id, youtube_url, scorecard_url, overlay_url, overlay_short_url, whatsapp_message, last_error, requested_by, created_at, updated_at'
+  'id, schedule_event_id, status, stream_key_name, youtube_video_id, youtube_url, scorecard_url, overlay_url, overlay_short_url, whatsapp_message, last_error, requested_by, checked_at, created_at, updated_at'
 
 const JOB_COLUMNS = 'id, game_stream_id, action, status, payload, error, created_by, created_at, updated_at'
 
@@ -41,6 +42,7 @@ export function parseGameStream(value: unknown): GameStream | null {
     whatsapp_message: textOrNull(row.whatsapp_message),
     last_error: textOrNull(row.last_error),
     requested_by: textOrNull(row.requested_by),
+    checked_at: textOrNull(row.checked_at),
     created_at: typeof row.created_at === 'string' ? row.created_at : '',
     updated_at: typeof row.updated_at === 'string' ? row.updated_at : '',
   }
@@ -173,6 +175,21 @@ export async function requestStreamJob(input: {
   if (!error) return null
   const message = await messageFromInvoke(error)
   return message || null
+}
+
+export async function linkExistingStream(scheduleEventId: string, youtubeUrl: string): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const parsed = parseVideoUrl(youtubeUrl)
+  if (parsed === null || parsed === 'invalid') return 'Paste a YouTube link (youtube.com or youtu.be).'
+  const https = parsed.replace(/^http:\/\//i, 'https://')
+  const { error } = await supabase.rpc('link_existing_stream', {
+    p_schedule_event_id: scheduleEventId,
+    p_youtube_url: https,
+  })
+  if (!error) return null
+  const message = error.message.trim()
+  if (!message) return 'That YouTube link could not be saved.'
+  return message
 }
 
 export type StreamTextField =

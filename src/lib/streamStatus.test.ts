@@ -6,8 +6,12 @@ import {
   liveStreamMessage,
   parseStreamScorecardUrl,
   retryAction,
+  shouldAutoCheck,
   shouldAutoEnd,
   streamControlVisible,
+  CHECKING_LABEL,
+  NOT_FOUND_LABEL,
+  STREAM_CHECK_INTERVAL_MS,
   watchUrl,
   type GameStream,
 } from './streamStatus.ts'
@@ -25,9 +29,60 @@ const stream = (patch: Partial<GameStream>): GameStream => ({
   whatsapp_message: null,
   last_error: null,
   requested_by: 'user-1',
+  checked_at: null,
   created_at: '2026-11-07T00:00:00Z',
   updated_at: '2026-11-07T00:00:00Z',
   ...patch,
+})
+
+test('a check job says it is looking on CricketCrazeUSA', () => {
+  const live = liveStreamMessage(stream({ status: 'checking', checked_at: '2026-11-07T18:00:00Z' }), {
+    status: 'pending',
+    action: 'check',
+    error: null,
+  })
+  assert.equal(live.label, CHECKING_LABEL)
+  assert.equal(live.phase, 'checking')
+  assert.equal(live.busy, true)
+})
+
+test('a finished check with no stream offers to create one', () => {
+  const live = liveStreamMessage(stream({ status: 'none', checked_at: '2026-11-07T18:00:00Z' }), null)
+  assert.equal(live.label, NOT_FOUND_LABEL)
+  assert.equal(live.phase, 'create')
+  assert.equal(live.busy, false)
+})
+
+test('a failed check keeps Retry and does not hide create', () => {
+  const row = stream({ status: 'failed', last_error: 'CricketCrazeUSA did not respond.', checked_at: '2026-11-07T18:00:00Z' })
+  const live = liveStreamMessage(row, { status: 'failed', action: 'check', error: 'CricketCrazeUSA did not respond.' })
+  assert.equal(live.phase, 'check_failed')
+  assert.equal(live.label, 'Setup failed: CricketCrazeUSA did not respond.')
+  assert.equal(retryAction(row, { status: 'failed', action: 'check' }), 'check')
+})
+
+test('automatic checks wait 10 minutes after the last lookup', () => {
+  const now = Date.parse('2026-11-07T18:20:00Z')
+  assert.equal(shouldAutoCheck(null, false, now), true)
+  assert.equal(shouldAutoCheck(stream({ status: 'none', checked_at: null }), false, now), true)
+  assert.equal(
+    shouldAutoCheck(stream({ status: 'none', checked_at: '2026-11-07T18:15:00Z' }), false, now),
+    false,
+  )
+  assert.equal(
+    shouldAutoCheck(
+      stream({ status: 'none', checked_at: new Date(now - STREAM_CHECK_INTERVAL_MS - 1000).toISOString() }),
+      false,
+      now,
+    ),
+    true,
+  )
+  assert.equal(shouldAutoCheck(stream({ status: 'checking', checked_at: '2026-11-07T17:00:00Z' }), false, now), false)
+  assert.equal(
+    shouldAutoCheck(stream({ status: 'none', youtube_url: 'https://youtu.be/abcdefghijk', checked_at: null }), false, now),
+    false,
+  )
+  assert.equal(shouldAutoCheck(null, true, now), false)
 })
 
 test('pending jobs read as Queued', () => {

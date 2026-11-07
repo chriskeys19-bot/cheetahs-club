@@ -41,6 +41,14 @@ test('scorecard must be a cricclubs URL', () => {
   assert.equal(typeof parsed === 'string' ? parsed : parsed.payload.scorecard_url.startsWith('https://cricclubs.com/'), true)
 })
 
+test('check has an empty payload', () => {
+  assert.deepEqual(readStreamJobRequest({ scheduleEventId: GAME, action: 'check' }), {
+    scheduleEventId: GAME,
+    action: 'check',
+    payload: {},
+  })
+})
+
 test('end has an empty payload', () => {
   assert.deepEqual(readStreamJobRequest({ scheduleEventId: GAME, action: 'end' }), {
     scheduleEventId: GAME,
