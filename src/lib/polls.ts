@@ -120,6 +120,22 @@ export async function loadPollBoard(userId: string): Promise<{ board: PollBoard;
   }
 }
 
+export async function loadPollsClosingBetween(
+  fromIso: string,
+  toIso: string,
+): Promise<{ rows: Poll[]; error: string | null }> {
+  if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
+  const { data, error } = await supabase
+    .from('polls')
+    .select('id, question, description, created_by, created_at, closes_at, status')
+    .gte('closes_at', fromIso)
+    .lt('closes_at', toIso)
+    .order('closes_at', { ascending: true })
+    .limit(200)
+  if (error) return { rows: [], error: error.message }
+  return { rows: parsePolls(data), error: null }
+}
+
 export function pollIsOpen(poll: Poll, now = Date.now()): boolean {
   if (poll.status !== 'open') return false
   if (!poll.closes_at) return true

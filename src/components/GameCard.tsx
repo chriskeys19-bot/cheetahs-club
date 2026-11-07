@@ -38,6 +38,7 @@ function chips(event: ScheduleEvent, teamSlug: string | null, sideName: string |
 }
 
 export function GameCard({
+  id,
   event,
   sideName,
   teamSlug,
@@ -51,6 +52,7 @@ export function GameCard({
   onRemove,
   onVideoSaved,
 }: {
+  id?: string
   event: ScheduleEvent
   sideName: string | null
   teamSlug: string | null
@@ -83,7 +85,7 @@ export function GameCard({
   )
 
   return (
-    <li className={played ? 'info-card game-card is-past' : 'info-card game-card'}>
+    <li id={id} className={played ? 'info-card game-card is-past' : 'info-card game-card'}>
       <div className="game-card-copy">
         {href ? (
           <Link className="game-card-link" to={href}>

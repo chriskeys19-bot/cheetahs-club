@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useLocation, useSearchParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
 import { GameCard } from '../components/GameCard.tsx'
+import { MonthCalendar } from '../components/MonthCalendar.tsx'
 import { useStreams } from '../components/streams-context.ts'
 import { RoleNote } from '../components/RoleNote.tsx'
 import {
@@ -14,6 +15,7 @@ import {
   removeFixture,
 } from '../lib/schedules.ts'
 import { loadMyTeamIds, loadTeams } from '../lib/teams.ts'
+import { scrollToLocationHash } from '../lib/scrollHash.ts'
 import { canManageClub, type ScheduleEvent, type Team } from '../lib/types.ts'
 
 const SIDES = ['all', 'upcoming', 'completed', 'alpha', 'beta', 'gamma', 'practice', 'mine'] as const
@@ -56,8 +58,11 @@ export function SchedulesPage() {
   const { session, profile, profileReady } = useAuth()
   const streams = useStreams()
   const staff = canManageClub(profile?.role)
+  const location = useLocation()
   const [params, setParams] = useSearchParams()
   const side = parseSide(params.get('side'))
+  const view = params.get('view') === 'calendar' ? 'calendar' : 'list'
+  const pinnedId = location.hash.startsWith('#fixture-') ? location.hash.slice('#fixture-'.length) : null
   const [teams, setTeams] = useState<Team[]>([])
   const [myTeamIds, setMyTeamIds] = useState<string[]>([])
   const [rows, setRows] = useState<ScheduleEvent[] | null>(null)
@@ -122,6 +127,13 @@ export function SchedulesPage() {
     })
   }, [rows, side, teams, myTeamIds, asOf])
 
+  const listed = useMemo(() => {
+    if (!pinnedId || !rows) return visible
+    if (visible.some((event) => event.id === pinnedId)) return visible
+    const pinned = rows.find((event) => event.id === pinnedId)
+    return pinned ? [pinned, ...visible] : visible
+  }, [visible, rows, pinnedId])
+
   function selectSide(next: SideFilter) {
     const nextParams = new URLSearchParams(params)
     if (next === 'all') nextParams.delete('side')
@@ -129,10 +141,22 @@ export function SchedulesPage() {
     setParams(nextParams, { replace: true })
   }
 
+  function selectView(next: 'list' | 'calendar') {
+    const nextParams = new URLSearchParams(params)
+    if (next === 'list') nextParams.delete('view')
+    else nextParams.set('view', 'calendar')
+    setParams(nextParams, { replace: true })
+  }
+
   useEffect(() => {
     const pressed = filterBarRef.current?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
     pressed?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
   }, [side])
+
+  useEffect(() => {
+    if (view === 'calendar' || !rows) return
+    scrollToLocationHash()
+  }, [view, rows, side, listed])
 
   function refresh() {
     setEditing(null)
@@ -181,7 +205,9 @@ export function SchedulesPage() {
           practice is on its own filter. Completed lists league games with a posted result.
           Upcoming lists league games still to be played. Times are Pacific
           (America/Los_Angeles). The club week on the home page is Monday through Sunday.
-          Availability stays on the club sheet.
+          Availability stays on the club sheet. Calendar is the month view of those league
+          games, practice, activities (including each date in a series), and the other dated
+          items already in the clubhouse.
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
@@ -204,6 +230,22 @@ export function SchedulesPage() {
           Add an event
         </button>
       ) : null}
+      <div className="filter-bar" role="group" aria-label="Schedule view">
+        <button type="button" className="filter-chip" aria-pressed={view === 'list'} onClick={() => selectView('list')}>
+          List
+        </button>
+        <button
+          type="button"
+          className="filter-chip"
+          aria-pressed={view === 'calendar'}
+          onClick={() => selectView('calendar')}
+        >
+          Calendar
+        </button>
+      </div>
+      {view === 'calendar' ? <MonthCalendar revision={token} /> : null}
+      {view === 'list' ? (
+      <>
       <div className="filter-bar" role="group" aria-label="Schedule filter" ref={filterBarRef}>
         <FilterChip label="All" count={counts.all} pressed={side === 'all'} onClick={() => selectSide('all')} />
         <FilterChip
@@ -251,7 +293,7 @@ export function SchedulesPage() {
             {streams.error}
           </p>
         ) : null}
-        {rows && (side === 'practice' || teams.length > 0) && visible.length === 0 && !error ? (
+        {rows && (side === 'practice' || teams.length > 0) && listed.length === 0 && !error ? (
           <p className="empty-copy">
             {side === 'mine'
               ? 'You are not on a side yet, or that side has no events.'
@@ -264,12 +306,13 @@ export function SchedulesPage() {
                     : 'No events in this view.'}
           </p>
         ) : null}
-        {visible.length > 0 ? (
+        {listed.length > 0 ? (
           <ul className="card-list tiles">
-            {visible.map((row) => {
+            {listed.map((row) => {
               const sideName = teamName(teams, row.team_id)
               return (
                 <GameCard
+                  id={`fixture-${row.id}`}
                   key={row.id}
                   event={row}
                   sideName={sideName}
@@ -294,6 +337,8 @@ export function SchedulesPage() {
           </ul>
         ) : null}
       </section>
+      </>
+      ) : null}
     </div>
   )
 }
