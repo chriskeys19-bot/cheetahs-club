@@ -36,11 +36,12 @@ const columns =
 export async function loadActivities(range: {
   from: string
   to?: string
+  limit?: number
 }): Promise<{ rows: Activity[]; error: string | null }> {
   if (!supabase) return { rows: [], error: 'Supabase is not configured.' }
   let query = supabase.from('activities').select(columns).gte('starts_at', range.from)
   if (range.to) query = query.lt('starts_at', range.to)
-  const { data, error } = await query.order('starts_at', { ascending: true }).limit(200)
+  const { data, error } = await query.order('starts_at', { ascending: true }).limit(range.limit ?? 200)
   if (error) return { rows: [], error: error.message }
   return { rows: parseActivities(data), error: null }
 }

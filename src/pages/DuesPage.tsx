@@ -16,6 +16,7 @@ import {
   type DuesDesk,
 } from '../lib/dues.ts'
 import { formatDateOnly, formatPacific, pacificDateInput } from '../lib/format.ts'
+import { scrollToLocationHash } from '../lib/scrollHash.ts'
 import {
   amountStillOpen,
   amountUnclaimed,
@@ -70,7 +71,12 @@ export function DuesPage() {
   const staff = canManageClub(profile?.role)
   const isAdmin = accountProfile?.role === 'admin'
   const userId = session?.user.id ?? null
-  const [view, setView] = useState<DuesView>('balances')
+  const [view, setView] = useState<DuesView>(() => {
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    if (id.startsWith('due-')) return 'mine'
+    if (id.startsWith('expense-')) return 'expenses'
+    return 'balances'
+  })
   const [desk, setDesk] = useState<DuesDesk | null>(null)
   const [snapshot, setSnapshot] = useState<SplitwiseSnapshot>(emptySnapshot)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
@@ -122,6 +128,13 @@ export function DuesPage() {
       gate.current = true
     }
   }, [profileReady, userId, staff, token])
+
+  useEffect(() => {
+    if (!desk) return
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    if (!id.startsWith('due-') && !id.startsWith('expense-')) return
+    scrollToLocationHash()
+  }, [desk, activeView])
 
   function refresh() {
     setError(null)
@@ -666,7 +679,7 @@ function MyDues({
             const expense = row.expense_id ? expenses.find((item) => item.id === row.expense_id) : undefined
             const rowPayments = payments.filter((payment) => payment.assessment_id === row.id)
             return (
-              <li key={row.id} className="info-card">
+              <li id={`due-${row.id}`} key={row.id} className="info-card">
                 <div className="tag-row">
                   <span className={tag.className}>{tag.label}</span>
                   <span className="tag">{row.period_label}</span>
@@ -755,7 +768,7 @@ function ExpenseList({
   return (
     <ul className="card-list tiles">
       {rows.map((row) => (
-        <li key={row.id} className="info-card">
+        <li id={`expense-${row.id}`} key={row.id} className="info-card">
           <div className="tag-row">
             <span className="tag tag-navy">{teamLabel(teams, row.team_id)}</span>
             {row.category ? <span className="tag">{row.category}</span> : null}

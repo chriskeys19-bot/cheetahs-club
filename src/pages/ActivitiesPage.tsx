@@ -7,6 +7,7 @@ import { RoleNote } from '../components/RoleNote.tsx'
 import { loadActivities, removeActivity, removeActivitySeries } from '../lib/activities.ts'
 import { formatPacific } from '../lib/format.ts'
 import { visibleText } from '../lib/richText.ts'
+import { scrollToLocationHash } from '../lib/scrollHash.ts'
 import { loadTeams } from '../lib/teams.ts'
 import { canEditItem, canManageClub, type Activity, type Team } from '../lib/types.ts'
 
@@ -24,7 +25,10 @@ export function ActivitiesPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [upcoming, setUpcoming] = useState<Activity[] | null>(null)
   const [past, setPast] = useState<Activity[]>([])
-  const [showPast, setShowPast] = useState(false)
+  const [showPast, setShowPast] = useState(() => {
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    return id.startsWith('activity-')
+  })
   const [error, setError] = useState<string | null>(null)
   const [token, setToken] = useState(0)
   const [editing, setEditing] = useState<Activity | null>(null)
@@ -64,6 +68,12 @@ export function ActivitiesPage() {
       gate.current = true
     }
   }, [token, showPast])
+
+  useEffect(() => {
+    const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
+    if (!id.startsWith('activity-')) return
+    scrollToLocationHash()
+  }, [upcoming, past, showPast])
 
   function refresh() {
     setEditing(null)
@@ -211,7 +221,7 @@ function ActivityCard({
   onDelete: () => void
 }) {
   return (
-    <li className="info-card">
+    <li id={`activity-${row.id}`} className="info-card">
       <div className="tag-row">
         <span className="tag tag-navy">{teamLabel(teams, row.team_id)}</span>
         {row.series_id ? <span className="tag">Series</span> : null}
