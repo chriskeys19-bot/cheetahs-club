@@ -107,7 +107,7 @@ function parseEvents(value: unknown): ScheduleEvent[] {
       dress_code: typeof row.dress_code === 'string' && isDressCode(row.dress_code) ? row.dress_code : null,
       result: typeof row.result === 'string' && isGameResult(row.result) ? row.result : null,
       scorecard_url: typeof row.scorecard_url === 'string' ? row.scorecard_url : null,
-      video_url: typeof row.video_url === 'string' ? row.video_url : null,
+      video_url: typeof row.video_url === 'string' && row.video_url.trim().length > 0 ? row.video_url : null,
       match_status: row.match_status === 'completed' ? 'completed' : 'scheduled',
     })
   }
@@ -146,6 +146,7 @@ export type FixtureInput = {
   dress_code: ScheduleEvent['dress_code']
   result: ScheduleEvent['result']
   scorecard_url: string | null
+  video_url: string | null
   match_status: ScheduleEvent['match_status']
 }
 
@@ -170,6 +171,7 @@ export async function saveFixture(input: FixtureInput): Promise<string | null> {
     dress_code: input.event_type === 'league_game' ? input.dress_code : null,
     result: input.event_type === 'league_game' ? input.result : null,
     scorecard_url: input.event_type === 'league_game' ? input.scorecard_url : null,
+    video_url: input.event_type === 'league_game' ? input.video_url : null,
     match_status: input.event_type === 'league_game' ? input.match_status : 'scheduled',
   }
   const { error } = input.id
@@ -203,10 +205,17 @@ export async function saveFixtureSeries(inputs: FixtureInput[], seriesId: string
       dress_code: input.event_type === 'league_game' ? input.dress_code : null,
       result: input.event_type === 'league_game' ? input.result : null,
       scorecard_url: input.event_type === 'league_game' ? input.scorecard_url : null,
+      video_url: input.event_type === 'league_game' ? input.video_url : null,
       match_status: input.event_type === 'league_game' ? input.match_status : 'scheduled',
     })
   }
   const { error } = await supabase.from('schedule_events').insert(rows)
+  return error ? actionError(error.message) : null
+}
+
+export async function saveGameVideo(id: string, videoUrl: string | null): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.'
+  const { error } = await supabase.from('schedule_events').update({ video_url: videoUrl }).eq('id', id)
   return error ? actionError(error.message) : null
 }
 

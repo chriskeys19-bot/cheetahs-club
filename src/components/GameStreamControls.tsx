@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
 import { formatFixture } from '../lib/format.ts'
+import { parseVideoUrl } from '../lib/games.ts'
 import { eventTitle, isCheetahsLeagueGame, isCompletedLeagueListing } from '../lib/schedules.ts'
 import {
   canEditStreamField,
@@ -10,23 +11,24 @@ import {
   retryAction,
   shouldAutoEnd,
   streamControlVisible,
-  watchUrl,
   type StreamAction,
 } from '../lib/streamStatus.ts'
 import { requestStreamJob, updateStreamField, type StreamTextField } from '../lib/streams.ts'
 import type { ScheduleEvent } from '../lib/types.ts'
 import { StreamDialog } from './StreamDialog.tsx'
-import { StreamMark, YouTubeMark } from './streamIcons.tsx'
+import { StreamMark } from './streamIcons.tsx'
 import { useStreams } from './streams-context.ts'
 
 export function GameStreamControls({
   event,
   teamName,
   teamSlug,
+  onVideoReady,
 }: {
   event: ScheduleEvent
   teamName: string | null
   teamSlug: string | null
+  onVideoReady?: (videoUrl: string | null) => void
 }) {
   const { session, profile } = useAuth()
   const board = useStreams()
@@ -40,7 +42,6 @@ export function GameStreamControls({
   const openJob = stream ? openJobFor(board.jobs, stream.id) : null
   const latestJob = stream ? latestJobFor(board.jobs, stream.id) : null
   const live = liveStreamMessage(stream, openJob ?? latestJob)
-  const videoHref = watchUrl(event.video_url, stream)
   const showStream = streamControlVisible({
     cheetahsLeague: cheetahs,
     completed,
@@ -75,7 +76,17 @@ export function GameStreamControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, board.ready, completed, stream, openJob])
 
-  if (!showStream && !videoHref && !open) return null
+  const reportedVideo = useRef<string | null>(null)
+  useEffect(() => {
+    if (!onVideoReady || event.video_url) return
+    if (!stream || stream.status !== 'ended' || !stream.youtube_url) return
+    const parsed = parseVideoUrl(stream.youtube_url)
+    if (!parsed || parsed === 'invalid' || reportedVideo.current === parsed) return
+    reportedVideo.current = parsed
+    onVideoReady(parsed)
+  }, [event.video_url, onVideoReady, stream])
+
+  if (!showStream && !open) return null
 
   const when = formatFixture(event.game_date, event.start_time, event.end_time)
   const title = eventTitle(event, teamName)
@@ -96,12 +107,6 @@ export function GameStreamControls({
 
   return (
     <>
-      {videoHref ? (
-        <a className="video-icon-button" href={videoHref} target="_blank" rel="noreferrer">
-          <YouTubeMark />
-          <span className="sr-only">Watch the YouTube video</span>
-        </a>
-      ) : null}
       {showStream ? (
         <button
           type="button"

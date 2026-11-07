@@ -7,12 +7,3 @@ export function StreamMark() {
     </svg>
   )
 }
-
-export function YouTubeMark() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-      <rect x="2" y="6" width="20" height="12" rx="3.5" fill="currentColor" />
-      <path className="video-icon-play" d="M10.5 9.4v5.2l4.8-2.6z" />
-    </svg>
-  )
-}

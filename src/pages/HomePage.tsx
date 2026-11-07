@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
-import { GameMeta } from '../components/GameMeta.tsx'
+import { GameCard } from '../components/GameCard.tsx'
 import { RichText } from '../components/RichText.tsx'
 import { ThisWeek } from '../components/ThisWeek.tsx'
 import { WelcomeQuote } from '../components/WelcomeQuote.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import { loadAnnouncements } from '../lib/announcements.ts'
-import { formatFixture, pacificWeekBounds } from '../lib/format.ts'
+import { pacificWeekBounds } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
-import { eventsInPacificWeek, eventTitle, isCheetahsLeagueGame, loadSchedule } from '../lib/schedules.ts'
+import { eventsInPacificWeek, isCheetahsLeagueGame, loadSchedule } from '../lib/schedules.ts'
 import { loadSplitwiseHome, type SplitwiseHome } from '../lib/splitwise.ts'
 import { loadTeams } from '../lib/teams.ts'
 import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
@@ -87,6 +87,10 @@ export function HomePage() {
   const venmoUsername = dues
     ? venmoPayHandle({ venmoUsername: dues.venmoUsername, syncedAt: dues.syncedAt })
     : null
+  const staff = canManageClub(profile?.role)
+  function onVideoSaved(eventId: string, videoUrl: string | null) {
+    setSchedule((rows) => rows.map((row) => (row.id === eventId ? { ...row, video_url: videoUrl } : row)))
+  }
   const name = displayName(profile, session?.user.email)
   const roleLine = profile
     ? `You are signed in as ${roleLabel(profile.role).toLowerCase()}.`
@@ -103,7 +107,7 @@ export function HomePage() {
           Welcome, {name}
         </h1>
         <p className="lede">{roleLine}</p>
-        {profile && canManageClub(profile.role) ? (
+        {profile && staff ? (
           <p className="fine-print">
             <Link to="/invites">Invite a player or add them to a side</Link>
           </p>
@@ -119,6 +123,8 @@ export function HomePage() {
           start={week.start}
           end={week.end}
           asOf={asOf}
+          canEdit={staff}
+          onVideoSaved={onVideoSaved}
         />
       ) : (
         <section className="panel week-panel" aria-labelledby="week-heading">
@@ -167,7 +173,7 @@ export function HomePage() {
           ) : (
             <p>You&apos;re settled on the Splitwise ledger.</p>
           )}
-          {canManageClub(profile?.role) && dues.owedByMembersCents !== null ? (
+          {staff && dues.owedByMembersCents !== null ? (
             <p className="fine-print">
               Members owe {formatCents(dues.owedByMembersCents)}
               {dues.owedToMembersCents !== null ? `, and are owed ${formatCents(dues.owedToMembersCents)}` : ''}. That
@@ -230,17 +236,17 @@ export function HomePage() {
         {upcoming.length > 0 ? (
           <ul className="card-list tiles">
             {upcoming.map((fixture) => {
-              const when = formatFixture(fixture.game_date, fixture.start_time, fixture.end_time)
               const side = teams.find((team) => team.id === fixture.team_id)
               return (
-                <li key={fixture.id} className="info-card">
-                  <p className="fixture-date">
-                    {when.date} · {when.time}
-                  </p>
-                  <h3>{eventTitle(fixture, side?.name ?? null)}</h3>
-                  <GameMeta event={fixture} teamSlug={side?.slug ?? null} asOf={asOf} />
-                  <p className="fine-print">{fixture.ground}</p>
-                </li>
+                <GameCard
+                  key={fixture.id}
+                  event={fixture}
+                  sideName={side?.name ?? null}
+                  teamSlug={side?.slug ?? null}
+                  asOf={asOf}
+                  canEdit={staff}
+                  onVideoSaved={(videoUrl) => onVideoSaved(fixture.id, videoUrl)}
+                />
               )
             })}
           </ul>

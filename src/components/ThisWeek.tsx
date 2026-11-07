@@ -1,13 +1,11 @@
 import { Link } from 'react-router'
-import { formatFixture, formatPacificDate } from '../lib/format.ts'
-import { eventKindLabel, eventTitle, isCheetahsLeagueGame } from '../lib/schedules.ts'
-import { GameMeta } from './GameMeta.tsx'
-import { GameStreamControls } from './GameStreamControls.tsx'
+import { GameCard } from './GameCard.tsx'
+import { formatPacificDate } from '../lib/format.ts'
 import type { ScheduleEvent, Team } from '../lib/types.ts'
 
-function sideName(teams: Team[], teamId: string | null): string | null {
+function sideTeam(teams: Team[], teamId: string | null): Team | null {
   if (!teamId) return null
-  return teams.find((team) => team.id === teamId)?.name ?? null
+  return teams.find((team) => team.id === teamId) ?? null
 }
 
 function scheduleHref(event: ScheduleEvent, teams: Team[]): string {
@@ -26,6 +24,8 @@ export function ThisWeek({
   start,
   end,
   asOf,
+  canEdit = false,
+  onVideoSaved,
 }: {
   events: ScheduleEvent[]
   teams: Team[]
@@ -34,6 +34,8 @@ export function ThisWeek({
   start: string
   end: string
   asOf: number | null
+  canEdit?: boolean
+  onVideoSaved?: (eventId: string, videoUrl: string | null) => void
 }) {
   return (
     <section className="panel week-panel" aria-labelledby="week-heading">
@@ -57,30 +59,18 @@ export function ThisWeek({
       {events.length > 0 ? (
         <ul className="card-list tiles">
           {events.map((event) => {
-            const when = formatFixture(event.game_date, event.start_time, event.end_time)
-            const side = sideName(teams, event.team_id)
-            const slug = teams.find((team) => team.id === event.team_id)?.slug ?? null
-            const played = asOf !== null && new Date(event.starts_at).getTime() < asOf
+            const side = sideTeam(teams, event.team_id)
             return (
-              <li key={event.id} className={played ? 'info-card is-past' : 'info-card'}>
-                {isCheetahsLeagueGame(event, slug) ? (
-                  <div className="card-stream-tools">
-                    <GameStreamControls event={event} teamName={side} teamSlug={slug} />
-                  </div>
-                ) : null}
-                <Link className="card-title-link" to={scheduleHref(event, teams)}>
-                  <div className="tag-row">
-                    <span className="tag tag-gold">{when.time}</span>
-                    <span className="tag tag-navy">{eventKindLabel(event.event_type)}</span>
-                    <span className="tag">{side ? side.replace(/^Cheetahs /, '') : 'Club-wide'}</span>
-                    {played ? <span className="tag">Played</span> : null}
-                  </div>
-                  <p className="fixture-date">{when.date}</p>
-                  <h3>{eventTitle(event, side)}</h3>
-                  <p>{event.ground}</p>
-                </Link>
-                <GameMeta event={event} teamSlug={slug} asOf={asOf} />
-              </li>
+              <GameCard
+                key={event.id}
+                event={event}
+                sideName={side?.name ?? null}
+                teamSlug={side?.slug ?? null}
+                asOf={asOf}
+                href={scheduleHref(event, teams)}
+                canEdit={canEdit}
+                onVideoSaved={onVideoSaved ? (videoUrl) => onVideoSaved(event.id, videoUrl) : undefined}
+              />
             )
           })}
         </ul>

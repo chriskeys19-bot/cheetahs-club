@@ -19,5 +19,8 @@ export function actionError(message: string): string {
   if (lower.includes('choice has votes')) {
     return 'A choice that already has votes stays on the poll. Rename it instead of removing it.'
   }
+  if (lower.includes('video_url') || lower.includes('schedule_events_video_url_check')) {
+    return 'Paste a YouTube link (youtube.com or youtu.be).'
+  }
   return message
 }

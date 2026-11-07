@@ -9,33 +9,12 @@
 -- public.request_stream_job, which checks the action against the current row.
 -- Players cannot update status or result columns. Staff can edit the display
 -- fields. Admins can edit every column. The service role writes processor results.
-
-alter table public.schedule_events
-  add column if not exists video_url text;
-
-comment on column public.schedule_events.video_url is
-  'YouTube link shown on a completed game. Copied from game_streams.youtube_url when a stream ends, if this is still empty.';
-
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_constraint
-    where conname = 'schedule_events_video_url_check'
-      and conrelid = 'public.schedule_events'::regclass
-  ) then
-    alter table public.schedule_events
-      add constraint schedule_events_video_url_check
-      check (
-        video_url is null
-        or (
-          char_length(btrim(video_url)) between 12 and 500
-          and btrim(video_url) ~* '^https://[^[:space:]]+$'
-        )
-      );
-  end if;
-end
-$$;
+--
+-- schedule_events.video_url, schedule_events_video_url_check, and
+-- private.stamp_schedule_event already exist (20261107120000_game_video_url.sql).
+-- This migration does not add or replace them. stamp_schedule_event rejects a
+-- video_url change only when auth.uid() is set and the member is not staff.
+-- A service-role write has auth.uid() null, so that check does not run.
 
 create or replace function private.is_cricclubs_url(p_url text)
 returns boolean
@@ -289,20 +268,36 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_url text;
 begin
-  if new.status = 'ended'
-    and new.youtube_url is not null
-    and (
-      tg_op = 'INSERT'
-      or old.status is distinct from 'ended'
-      or old.youtube_url is distinct from new.youtube_url
-    )
-  then
-    update public.schedule_events
-      set video_url = new.youtube_url
-      where id = new.schedule_event_id
-        and video_url is null;
+  if new.status is distinct from 'ended' or new.youtube_url is null then
+    return new;
   end if;
+  if tg_op = 'UPDATE'
+    and old.status = 'ended'
+    and old.youtube_url is not distinct from new.youtube_url
+  then
+    return new;
+  end if;
+
+  -- Same shape as schedule_events_video_url_check. A non-YouTube link is left
+  -- for the processor to store itself, instead of failing this stream update.
+  v_url := btrim(new.youtube_url);
+  if char_length(v_url) < 17
+    or char_length(v_url) > 500
+    or v_url !~* '^https?://([a-z0-9-]+\.)*(youtube\.com|youtu\.be)/[^[:space:]]+$'
+  then
+    return new;
+  end if;
+
+  -- Runs in the processor's service-role transaction. auth.uid() is null there,
+  -- so stamp_schedule_event allows the video_url write. An admin session is staff,
+  -- so that path is allowed too. The column stays untouched when it already has a link.
+  update public.schedule_events
+    set video_url = v_url
+    where id = new.schedule_event_id
+      and video_url is null;
   return new;
 end;
 $$;
