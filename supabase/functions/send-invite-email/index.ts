@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.81.1'
 import nodemailer from 'npm:nodemailer@6.10.1'
+import { formatExpiry } from './format.ts'
 
 // Gmail SMTP for cheetahscc123@gmail.com.
 // Supabase Edge blocks outbound ports 25 and 587. Port 465 (implicit TLS)
@@ -60,17 +61,6 @@ function appOrigin(): string {
   const raw = headerSafe(Deno.env.get('APP_ORIGIN') ?? DEFAULT_ORIGIN)
   if (ALLOWED_ORIGINS.has(raw)) return raw
   return DEFAULT_ORIGIN
-}
-
-function formatExpiry(iso: string): string {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return 'in 7 days'
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Los_Angeles',
-    dateStyle: 'full',
-    timeStyle: 'short',
-    timeZoneName: 'short',
-  }).format(date)
 }
 
 function smtpSettings(): { user: string; pass: string; fromName: string } | null {
