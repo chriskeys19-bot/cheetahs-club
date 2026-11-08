@@ -4,6 +4,7 @@ import {
   STREAM_STATUSES,
   parseHttpsUrl,
   parseStreamScorecardUrl,
+  preferredOverlayUrl,
   streamStatusLabel,
   type GameStream,
   type StreamKey,
@@ -164,6 +165,7 @@ export function StreamDialog({
   const showSetup = !loading && (live.phase === 'create' || live.phase === 'check_failed')
   const showScorecard = !loading && live.phase === 'scorecard'
   const showRetry = !loading && (live.phase === 'failed' || live.phase === 'check_failed')
+  const overlayHref = preferredOverlayUrl(stream)
   const fields =
     stream && live.phase !== 'create' && live.phase !== 'checking' && live.phase !== 'check_failed'
       ? visibleFields(stream)
@@ -206,6 +208,21 @@ export function StreamDialog({
           </button>
         </div>
         <p className="fine-print">{when}</p>
+        {overlayHref ? (
+          <div className="stream-overlay-panel">
+            <p className="stream-field-label">Overlay</p>
+            <a href={overlayHref} target="_blank" rel="noreferrer">
+              {overlayHref}
+            </a>
+            <button
+              type="button"
+              className="button button-gold button-block"
+              onClick={() => void copy('overlay-prominent', overlayHref)}
+            >
+              {copied === 'overlay-prominent' ? 'Copied' : 'Copy overlay'}
+            </button>
+          </div>
+        ) : null}
         {loading ? <p className="empty-copy">Loading the stream…</p> : null}
         {!loading ? (
           <p className={live.busy ? 'stream-status is-busy' : 'stream-status'} role="status" aria-live="polite">
