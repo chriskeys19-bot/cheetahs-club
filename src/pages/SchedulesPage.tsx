@@ -23,6 +23,7 @@ type SideFilter = (typeof SIDES)[number]
 
 function parseSide(value: string | null): SideFilter {
   if (
+    value === 'all' ||
     value === 'upcoming' ||
     value === 'completed' ||
     value === 'alpha' ||
@@ -33,7 +34,7 @@ function parseSide(value: string | null): SideFilter {
   ) {
     return value
   }
-  return 'all'
+  return 'upcoming'
 }
 
 function listHeading(side: SideFilter): string {
@@ -119,13 +120,13 @@ export function SchedulesPage() {
       if (side === 'practice') return event.event_type === 'practice'
       const slug = teamSlug(teams, event.team_id)
       if (side === 'completed') return isCompletedLeagueListing(event, slug)
-      if (side === 'upcoming') return asOf !== null && isUpcomingLeagueGame(event, slug, asOf)
+      if (side === 'upcoming') return isUpcomingLeagueGame(event, slug)
       if (!isCheetahsLeagueGame(event, slug)) return false
       if (side === 'all') return true
       if (side === 'mine') return event.team_id !== null && myTeamIds.includes(event.team_id)
       return slug === side
     })
-  }, [rows, side, teams, myTeamIds, asOf])
+  }, [rows, side, teams, myTeamIds])
 
   const listed = useMemo(() => {
     if (!pinnedId || !rows) return visible
@@ -136,7 +137,7 @@ export function SchedulesPage() {
 
   function selectSide(next: SideFilter) {
     const nextParams = new URLSearchParams(params)
-    if (next === 'all') nextParams.delete('side')
+    if (next === 'upcoming') nextParams.delete('side')
     else nextParams.set('side', next)
     setParams(nextParams, { replace: true })
   }
@@ -183,10 +184,7 @@ export function SchedulesPage() {
   const leagueRows = (rows ?? []).filter((event) => isCheetahsLeagueGame(event, teamSlug(teams, event.team_id)))
   const counts = {
     all: leagueRows.length,
-    upcoming:
-      asOf === null
-        ? 0
-        : leagueRows.filter((event) => isUpcomingLeagueGame(event, teamSlug(teams, event.team_id), asOf)).length,
+    upcoming: leagueRows.filter((event) => isUpcomingLeagueGame(event, teamSlug(teams, event.team_id))).length,
     completed: leagueRows.filter((event) => isCompletedLeagueListing(event, teamSlug(teams, event.team_id))).length,
     alpha: leagueRows.filter((event) => teamSlug(teams, event.team_id) === 'alpha').length,
     beta: leagueRows.filter((event) => teamSlug(teams, event.team_id) === 'beta').length,
@@ -202,8 +200,9 @@ export function SchedulesPage() {
         <h1>Schedules</h1>
         <p className="lede">
           Cheetahs Alpha, Beta, and Gamma league games from the winter sheet. Wednesday
-          practice is on its own filter. Completed lists league games with a posted result.
-          Upcoming lists league games still to be played. Times are Pacific
+          practice is on its own filter. Upcoming is the default: league games that are
+          scheduled or already underway, and not completed. Completed lists league games
+          with a posted result or a completed status. Times are Pacific
           (America/Los_Angeles). The club week on the home page is Monday through Sunday.
           Availability stays on the club sheet. Calendar is the month view of those league
           games, practice, activities (including each date in a series), and the other dated
@@ -211,7 +210,7 @@ export function SchedulesPage() {
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins can add, edit, or remove events, and can add a YouTube link on a completed game. Recurring adds one row per date. Players can read the list and watch a posted video.
+        Captains and admins can add, edit, or remove events, and can set the match video from the stream pop-up on a completed game. Recurring adds one row per date. Players can read the list and watch a posted video.
       </RoleNote>
       {staff && (composing || editing) ? (
         <FixtureForm

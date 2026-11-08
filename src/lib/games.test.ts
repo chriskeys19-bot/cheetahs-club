@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseVideoUrl } from './games.ts'
+import { parseVideoUrl, resultTagClass } from './games.ts'
 
 test('accepts http and https YouTube links and trims them', () => {
   assert.equal(
@@ -21,6 +21,14 @@ test('accepts http and https YouTube links and trims them', () => {
     'https://www.youtube.com/shorts/dQw4w9WgXcQ',
   )
   assert.equal(parseVideoUrl('https://www.youtu.be/dQw4w9WgXcQ?t=12'), 'https://www.youtu.be/dQw4w9WgXcQ?t=12')
+})
+
+test('result badges keep an unposted result navy and color the outcomes', () => {
+  assert.equal(resultTagClass('win'), 'tag tag-win')
+  assert.equal(resultTagClass('loss'), 'tag tag-loss')
+  assert.equal(resultTagClass('draw'), 'tag tag-result-neutral')
+  assert.equal(resultTagClass('nr'), 'tag tag-result-neutral')
+  assert.equal(resultTagClass(null), 'tag tag-navy')
 })
 
 test('blank input clears the link', () => {

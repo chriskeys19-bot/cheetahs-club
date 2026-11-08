@@ -16,16 +16,10 @@ import {
 } from '../lib/calendar.ts'
 import { loadMonthCalendar } from '../lib/calendarLoad.ts'
 import { pacificDateInput } from '../lib/format.ts'
-import { resultLabel, type GameResult } from '../lib/games.ts'
+import { resultLabel, resultTagClass } from '../lib/games.ts'
 import { WatchVideoLink } from './GameMeta.tsx'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
-
-function resultClass(result: GameResult | null): string {
-  if (result === 'win') return 'tag tag-win'
-  if (result === 'loss') return 'tag tag-loss'
-  return 'tag tag-navy'
-}
 
 function Chevron({ direction }: { direction: 'left' | 'right' }) {
   const path = direction === 'left' ? 'M11.5 3.5 6 9l5.5 5.5' : 'M6.5 3.5 12 9l-5.5 5.5'
@@ -225,7 +219,7 @@ export function MonthCalendarView({
                 {item.kit ? <p className="fixture-meta">{item.kit}</p> : null}
                 {item.showResult ? (
                   <p className="game-result">
-                    <span className={resultClass(item.result)}>{resultLabel(item.result)}</span>
+                    <span className={resultTagClass(item.result)}>{resultLabel(item.result)}</span>
                     {item.videoUrl ? <WatchVideoLink href={item.videoUrl} /> : null}
                   </p>
                 ) : null}

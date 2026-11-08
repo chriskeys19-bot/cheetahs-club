@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../auth/useAuth.ts'
 import { formatFixture } from '../lib/format.ts'
-import { parseVideoUrl } from '../lib/games.ts'
-import { eventTitle, isCheetahsLeagueGame, isCompletedLeagueListing } from '../lib/schedules.ts'
+import { isLeagueCompleted, parseVideoUrl } from '../lib/games.ts'
+import { eventTitle, isCheetahsLeagueGame, isCompletedLeagueListing, saveGameVideo } from '../lib/schedules.ts'
 import {
   CHECKING_LABEL,
   canEditStreamField,
   canManuallyEndStream,
+  failedStreamChipHidden,
   latestJobFor,
   liveStreamMessage,
   openJobFor,
   overlayUrlFromScorecard,
-  preferredOverlayUrl,
   retryAction,
   shouldAutoCheck,
   shouldAutoEnd,
@@ -21,7 +21,7 @@ import {
   type StreamLive,
 } from '../lib/streamStatus.ts'
 import { linkExistingStream, requestStreamJob, updateStreamField, type StreamTextField } from '../lib/streams.ts'
-import type { ScheduleEvent } from '../lib/types.ts'
+import { canManageClub, isClubRole, type ScheduleEvent } from '../lib/types.ts'
 import { StreamDialog } from './StreamDialog.tsx'
 import { StreamMark } from './streamIcons.tsx'
 import { useStreams } from './streams-context.ts'
@@ -53,18 +53,36 @@ export function GameStreamControls({
   const openJob = stream ? openJobFor(board.jobs, stream.id) : null
   const latestJob = stream ? latestJobFor(board.jobs, stream.id) : null
   const live = liveStreamMessage(shownStream, openJob ?? latestJob)
-  const overlayUrl = preferredOverlayUrl(shownStream)
+  const staff = isClubRole(profile?.role) && canManageClub(profile?.role)
+  const matchOver = isLeagueCompleted(event, Date.now()) || event.result !== null
+  const canEditVideo = staff && matchOver
+  const staleFailure = failedStreamChipHidden({
+    status: stream?.status ?? null,
+    completed,
+    gameDate: event.game_date,
+    asOf: Date.now(),
+  })
 
   useEffect(() => {
     if (!earlyOverlay || !stream) return
     if (streamWithEarlyOverlay(stream, earlyOverlay) === stream) setEarlyOverlay(null)
   }, [earlyOverlay, stream])
-  const showStream = streamControlVisible({
-    cheetahsLeague: cheetahs,
-    completed,
-    status: stream?.status ?? null,
-    role: profile?.role,
-  })
+  const showStream =
+    streamControlVisible({
+      cheetahsLeague: cheetahs,
+      completed,
+      status: stream?.status ?? null,
+      role: profile?.role,
+    }) && !(staleFailure && !staff)
+
+  async function saveMatchVideo(url: string | null) {
+    setPending(true)
+    setRequestError(null)
+    const message = await saveGameVideo(event.id, url)
+    setPending(false)
+    setRequestError(message)
+    if (!message) onVideoReady?.(url)
+  }
 
   async function run(action: StreamAction, extra?: { streamKeyName?: string; scorecardUrl?: string }) {
     setPending(true)
@@ -119,6 +137,7 @@ export function GameStreamControls({
 
   const when = formatFixture(event.game_date, event.start_time, event.end_time)
   const title = eventTitle(event, teamName)
+  const cardLive: StreamLive = staleFailure ? { phase: 'ready', label: `Live stream for ${title}`, busy: false } : displayLive
   const canEditText = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'text')
   const canEditStatus = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'status')
   const canEndStream = canManuallyEndStream(profile?.role, stream, Boolean(openJob))
@@ -137,8 +156,7 @@ export function GameStreamControls({
     <>
       {showStream ? (
         <StreamCardControl
-          live={displayLive}
-          overlayUrl={overlayUrl}
+          live={cardLive}
           title={title}
           onOpen={() => {
             setRequestError(null)
@@ -158,6 +176,9 @@ export function GameStreamControls({
           canEditText={canEditText}
           canEditStatus={canEditStatus}
           canEndStream={canEndStream}
+          videoUrl={event.video_url}
+          canEditVideo={canEditVideo}
+          onSaveVideo={(url) => void saveMatchVideo(url)}
           requestError={requestError ?? board.error}
           pending={pending}
           onClose={() => setOpen(false)}
@@ -208,12 +229,10 @@ export function GameStreamControls({
 
 export function StreamCardControl({
   live,
-  overlayUrl,
   title,
   onOpen,
 }: {
   live: StreamLive
-  overlayUrl: string | null
   title: string
   onOpen: () => void
 }) {
@@ -247,37 +266,6 @@ export function StreamCardControl({
           <span className="stream-icon-label">{iconText}</span>
         ) : null}
       </button>
-      {overlayUrl ? <OverlayCopyButton url={overlayUrl} /> : null}
-    </div>
-  )
-}
-
-function OverlayCopyButton({ url }: { url: string }) {
-  const [copied, setCopied] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  return (
-    <div className="stream-overlay-copy">
-      <button
-        type="button"
-        className="button button-gold stream-overlay-copy-button"
-        aria-label={`Copy overlay link ${url}`}
-        onClick={() => {
-          void (async () => {
-            try {
-              await navigator.clipboard.writeText(url)
-              setError(null)
-              setCopied(true)
-              window.setTimeout(() => setCopied(false), 2000)
-            } catch {
-              setError('Copy failed. Open the stream and copy the link there.')
-            }
-          })()
-        }}
-      >
-        {copied ? 'Copied' : 'Copy overlay'}
-      </button>
-      {error ? <p className="fine-print">{error}</p> : null}
     </div>
   )
 }
