@@ -1848,6 +1848,15 @@ a.info-card:focus-visible {
   background: color-mix(in srgb, var(--color-primary) 86%, var(--color-accent));
 }
 
+.button-danger {
+  background: #8f2a2a;
+  color: #fcf6ee;
+}
+
+.button-danger:hover:not(:disabled) {
+  background: #731f1f;
+}
+
 .rte {
   display: grid;
   gap: 6px;
@@ -2627,6 +2636,20 @@ textarea.note-field {
 
 .stream-status.is-busy {
   background: color-mix(in srgb, var(--color-accent) 32%, var(--color-surface-raised));
+}
+
+.stream-end-confirm {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #8f2a2a;
+  background: color-mix(in srgb, #8f2a2a 8%, var(--color-surface-raised));
+}
+
+.stream-end-confirm p {
+  margin: 0;
+  font-weight: 700;
 }
 
 .stream-spinner {

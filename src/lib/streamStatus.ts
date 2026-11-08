@@ -1,3 +1,5 @@
+import { canManageClub, isClubRole } from './types.ts'
+
 export const STREAM_STATUSES = [
   'none',
   'checking',
@@ -219,6 +221,18 @@ export function shouldAutoEnd(
   }
   if (stream.status === 'failed' && !stream.youtube_url && !stream.youtube_video_id) return false
   return true
+}
+
+/** Pop-up End stream button: captain or admin, a YouTube video, and no open job. */
+export function canManuallyEndStream(
+  role: string | null | undefined,
+  stream: Pick<GameStream, 'status' | 'youtube_url' | 'youtube_video_id'> | null,
+  jobOpen: boolean,
+): boolean {
+  if (!isClubRole(role) || !canManageClub(role)) return false
+  if (!stream || jobOpen) return false
+  if (stream.status === 'none' || stream.status === 'ending' || stream.status === 'ended') return false
+  return Boolean(stream.youtube_url || stream.youtube_video_id)
 }
 
 export function shouldAutoCheck(

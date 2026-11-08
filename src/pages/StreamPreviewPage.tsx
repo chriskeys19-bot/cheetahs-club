@@ -1,6 +1,14 @@
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { StreamDialog } from '../components/StreamDialog.tsx'
-import { CHECKING_LABEL, NOT_FOUND_LABEL, type GameStream, type StreamKey, type StreamLive } from '../lib/streamStatus.ts'
+import {
+  CHECKING_LABEL,
+  NOT_FOUND_LABEL,
+  canManuallyEndStream,
+  type GameStream,
+  type StreamKey,
+  type StreamLive,
+} from '../lib/streamStatus.ts'
 
 const KEYS: StreamKey[] = [
   { id: 'key-1', name: 'Yolobox Pro 1', active: true, sort_order: 1 },
@@ -26,7 +34,7 @@ const baseStream: GameStream = {
   updated_at: '2026-11-07T18:05:00Z',
 }
 
-const STATES = ['checking', 'notfound', 'paste', 'create', 'queued', 'creating', 'scorecard', 'overlay', 'failed', 'ready', 'ending'] as const
+const STATES = ['checking', 'notfound', 'paste', 'create', 'queued', 'creating', 'scorecard', 'overlay', 'failed', 'ready', 'ending', 'ended'] as const
 
 type PreviewState = (typeof STATES)[number]
 
@@ -103,22 +111,46 @@ function previewModel(state: PreviewState): { stream: GameStream | null; live: S
       pasteOpen: false,
     }
   }
+  if (state === 'ended') {
+    return {
+      stream: { ...baseStream, status: 'ended' },
+      live: { phase: 'ended', label: 'Ended', busy: false },
+      pasteOpen: false,
+    }
+  }
   return { stream: baseStream, live: { phase: 'ready', label: 'Ready', busy: false }, pasteOpen: false }
 }
 
 export function StreamPreviewPage() {
   const [params] = useSearchParams()
-  const state = previewState(params.get('state'))
+  const requested = previewState(params.get('state'))
+  const [acted, setActed] = useState<{ requested: PreviewState; phase: PreviewState } | null>(null)
+  const state = acted?.requested === requested ? acted.phase : requested
+  const roleParam = params.get('role')
+  const role = roleParam === 'player' || roleParam === 'admin' || roleParam === 'captain' ? roleParam : 'captain'
   const model = previewModel(state)
+  const canEnd = canManuallyEndStream(role, model.stream, model.live.busy)
+  const roleLabel = { admin: 'Admin', captain: 'Captain', player: 'Player' }[role]
+
+  useEffect(() => {
+    if (acted?.phase !== 'ending') return
+    const requestedAtClick = acted.requested
+    const timer = window.setTimeout(() => {
+      setActed({ requested: requestedAtClick, phase: 'ended' })
+    }, 1600)
+    return () => window.clearTimeout(timer)
+  }, [acted])
+
   return (
     <div className="stream-preview">
       <article className="info-card">
         <p className="kicker">Preview</p>
         <h1>Alpha vs Tracy Centurions</h1>
         <p className="fixture-date">Sun, Nov 8 · 9:30 AM Pacific</p>
-        <p>Mock rows for the stream pop-up. Nothing here is saved.</p>
+        <p>Mock rows for the stream pop-up. Nothing here is saved. Viewing as {roleLabel}.</p>
       </article>
       <StreamDialog
+        key={`${role}-${params.get('confirm') ?? ''}-${requested}`}
         title="Alpha vs Tracy Centurions"
         when="Sun, Nov 8 · 9:30 AM Pacific"
         stream={model.stream}
@@ -126,10 +158,12 @@ export function StreamPreviewPage() {
         live={model.live}
         loading={false}
         canEditText
-        canEditStatus={state === 'ready' || state === 'ending'}
+        canEditStatus={state === 'ready' || state === 'ending' || state === 'ended'}
+        canEndStream={canEnd}
         requestError={null}
         pending={false}
         pasteOpen={model.pasteOpen}
+        confirmEnd={params.get('confirm') === '1' && canEnd}
         onClose={() => undefined}
         onCreate={() => undefined}
         onScorecard={() => undefined}
@@ -137,6 +171,7 @@ export function StreamPreviewPage() {
         onCheckAgain={() => undefined}
         onPaste={() => undefined}
         onSave={() => undefined}
+        onEnd={() => setActed({ requested, phase: 'ending' })}
       />
     </div>
   )

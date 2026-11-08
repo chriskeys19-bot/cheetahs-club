@@ -52,8 +52,11 @@ verify_jwt = true
 
 # request-stream-job queues a check, create, add_scorecard, or end job for a
 # signed-in member. The gateway requires a user JWT. The handler calls
-# getUser again, then request_stream_job. YouTube and CricClubs work stays
-# outside the app. Secrets, never source: STREAM_WEBHOOK_URL, STREAM_WEBHOOK_KEY.
+# getUser again, then request_stream_job. Ending a stream before the game is
+# completed is limited to captains and admins inside that RPC. A completed
+# game can still be ended by any signed-in member, which is the automatic end.
+# YouTube and CricClubs work stays outside the app. Secrets, never source:
+# STREAM_WEBHOOK_URL, STREAM_WEBHOOK_KEY.
 
 [functions.request-stream-job]
 verify_jwt = true
