@@ -4,15 +4,20 @@ import {
   canEditStreamField,
   isPublicStreamStatus,
   liveStreamMessage,
+  overlayUrlFromScorecard,
   parseStreamScorecardUrl,
+  preferredOverlayUrl,
   retryAction,
   shouldAutoCheck,
   canManuallyEndStream,
   shouldAutoEnd,
   streamControlVisible,
+  streamNeedsLiveRefresh,
+  streamWithEarlyOverlay,
   CHECKING_LABEL,
   NOT_FOUND_LABEL,
   STREAM_CHECK_INTERVAL_MS,
+  UPDATING_STREAM_LABEL,
   watchUrl,
   type GameStream,
 } from './streamStatus.ts'
@@ -115,6 +120,85 @@ test('running jobs use the action copy', () => {
   )
 })
 
+test('setting up with a saved overlay uses the finishing label', () => {
+  const live = liveStreamMessage(
+    stream({
+      status: 'setting_up_overlay',
+      overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712',
+    }),
+    { status: 'running', action: 'add_scorecard', error: null },
+  )
+  assert.equal(live.phase, 'updating')
+  assert.equal(live.label, UPDATING_STREAM_LABEL)
+})
+
+test('an overlay link switches the card to the finishing label', () => {
+  const row = stream({
+    status: 'updating_stream',
+    overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712',
+    overlay_short_url: 'https://is.gd/cheetahs42',
+  })
+  const live = liveStreamMessage(row, { status: 'running', action: 'add_scorecard', error: null })
+  assert.equal(live.phase, 'updating')
+  assert.equal(live.label, UPDATING_STREAM_LABEL)
+  assert.equal(live.busy, true)
+  assert.equal(preferredOverlayUrl(row), 'https://is.gd/cheetahs42')
+})
+
+test('a saved overlay stays visible when the second phase fails', () => {
+  const row = stream({
+    status: 'failed',
+    youtube_url: 'https://youtube.com/watch?v=abc',
+    scorecard_url: 'https://cricclubs.com/NCCA/viewScorecard.do?matchId=987&clubId=1712',
+    overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712',
+    overlay_short_url: 'https://is.gd/cheetahs42',
+    last_error: 'YouTube description was not updated.',
+  })
+  const live = liveStreamMessage(row, { status: 'failed', action: 'add_scorecard', error: 'YouTube description was not updated.' })
+  assert.equal(live.phase, 'failed')
+  assert.equal(live.label, 'Setup failed: YouTube description was not updated.')
+  assert.equal(preferredOverlayUrl(row), 'https://is.gd/cheetahs42')
+  assert.equal(retryAction(row, { status: 'failed', action: 'add_scorecard' }), 'add_scorecard')
+})
+
+test('direct scorecard links build an overlay before the worker runs', () => {
+  assert.equal(
+    overlayUrlFromScorecard('https://cricclubs.com/NCCA/viewScorecard.do?clubId=1712&matchId=987'),
+    'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712',
+  )
+  assert.equal(
+    overlayUrlFromScorecard('http://www.cricclubs.com/Cheetahs/viewScorecard.do?matchId=42&clubId=7'),
+    'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=42&clubId=7',
+  )
+  assert.equal(overlayUrlFromScorecard('https://cricclubs.com/NCCA/results/abc123'), null)
+  assert.equal(overlayUrlFromScorecard('https://cricclubs.com/NCCA/viewScorecard.do?matchId=42'), null)
+  const early = 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712'
+  const pending = streamWithEarlyOverlay(
+    stream({ overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=1&clubId=2', overlay_short_url: 'https://is.gd/old' }),
+    early,
+  )
+  assert.equal(pending?.overlay_url, early)
+  assert.equal(pending?.overlay_short_url, null)
+  assert.equal(streamWithEarlyOverlay(stream({ overlay_url: early, overlay_short_url: 'https://is.gd/new' }), early)?.overlay_short_url, 'https://is.gd/new')
+  const published = streamWithEarlyOverlay(
+    stream({
+      status: 'failed',
+      overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=5&clubId=6',
+      overlay_short_url: 'https://is.gd/kept',
+    }),
+    early,
+  )
+  assert.equal(published?.overlay_short_url, 'https://is.gd/kept')
+})
+
+test('scorecard setup keeps polling until the overlay job finishes', () => {
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'updating_stream' })], []), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'setting_up_overlay' })], []), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'ready' })], [{ action: 'add_scorecard', status: 'running' }]), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'ready' })], [{ action: 'add_scorecard', status: 'done' }]), false)
+  assert.equal(isPublicStreamStatus('updating_stream'), true)
+})
+
 test('failures keep the processor error and a retry action', () => {
   const row = stream({ status: 'failed', last_error: 'YouTube rejected the broadcast.' })
   const live = liveStreamMessage(row, { status: 'failed', action: 'create', error: 'YouTube rejected the broadcast.' })
@@ -190,6 +274,15 @@ test('manual end is captains and admins while a YouTube video is up', () => {
     canManuallyEndStream('captain', stream({ status: 'setting_up_overlay', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
     true,
   )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    true,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), true),
+    false,
+  )
+  assert.equal(shouldAutoEnd(true, stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), true), false)
 })
 
 test('public list is upcoming or live only', () => {

@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
+import { StreamCardControl } from '../components/GameStreamControls.tsx'
 import { StreamDialog } from '../components/StreamDialog.tsx'
 import {
   CHECKING_LABEL,
   NOT_FOUND_LABEL,
+  UPDATING_STREAM_LABEL,
   canManuallyEndStream,
+  preferredOverlayUrl,
   type GameStream,
   type StreamKey,
   type StreamLive,
@@ -34,7 +37,7 @@ const baseStream: GameStream = {
   updated_at: '2026-11-07T18:05:00Z',
 }
 
-const STATES = ['checking', 'notfound', 'paste', 'create', 'queued', 'creating', 'scorecard', 'overlay', 'failed', 'ready', 'ending', 'ended'] as const
+const STATES = ['checking', 'notfound', 'paste', 'create', 'queued', 'creating', 'scorecard', 'overlay', 'updating', 'failed', 'ready', 'ending', 'ended'] as const
 
 type PreviewState = (typeof STATES)[number]
 
@@ -97,6 +100,20 @@ function previewModel(state: PreviewState): { stream: GameStream | null; live: S
       pasteOpen: false,
     }
   }
+  if (state === 'updating') {
+    return {
+      stream: {
+        ...baseStream,
+        status: 'updating_stream',
+        scorecard_url: 'https://cricclubs.com/NCCA/viewScorecard.do?matchId=987&clubId=1712',
+        overlay_url: 'https://static.cricclubs.com/overlay-cc/CC_1712/ccindex.html?matchId=987&clubId=1712',
+        overlay_short_url: 'https://is.gd/cheetahs42',
+        whatsapp_message: null,
+      },
+      live: { phase: 'updating', label: UPDATING_STREAM_LABEL, busy: true },
+      pasteOpen: false,
+    }
+  }
   if (state === 'failed') {
     return {
       stream: { ...baseStream, status: 'failed', last_error: 'YouTube rejected the broadcast.', youtube_video_id: null, youtube_url: null, scorecard_url: null, overlay_url: null, overlay_short_url: null, whatsapp_message: null },
@@ -131,6 +148,7 @@ export function StreamPreviewPage() {
   const model = previewModel(state)
   const canEnd = canManuallyEndStream(role, model.stream, model.live.busy)
   const roleLabel = { admin: 'Admin', captain: 'Captain', player: 'Player' }[role]
+  const overlayUrl = preferredOverlayUrl(model.stream)
 
   useEffect(() => {
     if (acted?.phase !== 'ending') return
@@ -140,6 +158,43 @@ export function StreamPreviewPage() {
     }, 1600)
     return () => window.clearTimeout(timer)
   }, [acted])
+
+  if (params.get('view') === 'card') {
+    return (
+      <div className="stream-preview">
+        <ul className="card-list">
+          <li className="info-card game-card">
+            <div className="game-card-copy">
+              <div className="game-card-summary">
+                <p className="game-card-when">
+                  <span className="game-card-date">Sun, Nov 8</span>
+                  <span className="game-card-time">9:30 AM</span>
+                </p>
+                <h3 className="game-card-title">Alpha vs Tracy Centurions</h3>
+                <p className="game-card-venue">Central Park</p>
+              </div>
+            </div>
+            <ul className="game-chips">
+              <li>
+                <span className="tag tag-navy">League</span>
+              </li>
+              <li>
+                <span className="tag">Alpha</span>
+              </li>
+              <li className="game-chip-stream">
+                <StreamCardControl
+                  live={model.live}
+                  overlayUrl={overlayUrl}
+                  title="Alpha vs Tracy Centurions"
+                  onOpen={() => undefined}
+                />
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </div>
+    )
+  }
 
   return (
     <div className="stream-preview">

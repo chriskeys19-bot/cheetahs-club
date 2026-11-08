@@ -10,11 +10,15 @@ import {
   latestJobFor,
   liveStreamMessage,
   openJobFor,
+  overlayUrlFromScorecard,
+  preferredOverlayUrl,
   retryAction,
   shouldAutoCheck,
   shouldAutoEnd,
   streamControlVisible,
+  streamWithEarlyOverlay,
   type StreamAction,
+  type StreamLive,
 } from '../lib/streamStatus.ts'
 import { linkExistingStream, requestStreamJob, updateStreamField, type StreamTextField } from '../lib/streams.ts'
 import type { ScheduleEvent } from '../lib/types.ts'
@@ -41,12 +45,20 @@ export function GameStreamControls({
   const autoEnd = useRef(false)
   const autoCheck = useRef(false)
   const [forcingCheck, setForcingCheck] = useState(false)
+  const [earlyOverlay, setEarlyOverlay] = useState<string | null>(null)
   const cheetahs = isCheetahsLeagueGame(event, teamSlug)
   const completed = isCompletedLeagueListing(event, teamSlug)
   const stream = board.streams.find((row) => row.schedule_event_id === event.id) ?? null
+  const shownStream = streamWithEarlyOverlay(stream, earlyOverlay)
   const openJob = stream ? openJobFor(board.jobs, stream.id) : null
   const latestJob = stream ? latestJobFor(board.jobs, stream.id) : null
-  const live = liveStreamMessage(stream, openJob ?? latestJob)
+  const live = liveStreamMessage(shownStream, openJob ?? latestJob)
+  const overlayUrl = preferredOverlayUrl(shownStream)
+
+  useEffect(() => {
+    if (!earlyOverlay || !stream) return
+    if (streamWithEarlyOverlay(stream, earlyOverlay) === stream) setEarlyOverlay(null)
+  }, [earlyOverlay, stream])
   const showStream = streamControlVisible({
     cheetahsLeague: cheetahs,
     completed,
@@ -66,6 +78,7 @@ export function GameStreamControls({
     setPending(false)
     setRequestError(message)
     await board.reload()
+    return message
   }
 
   useEffect(() => {
@@ -106,16 +119,6 @@ export function GameStreamControls({
 
   const when = formatFixture(event.game_date, event.start_time, event.end_time)
   const title = eventTitle(event, teamName)
-  const iconText =
-    displayLive.phase === 'failed' || displayLive.phase === 'check_failed'
-      ? 'Setup failed'
-      : displayLive.phase === 'checking'
-        ? 'Checking…'
-        : displayLive.label
-  const iconLabel =
-    displayLive.phase === 'failed' || displayLive.phase === 'check_failed' || displayLive.busy
-      ? displayLive.label
-      : `Live stream for ${title}`
   const canEditText = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'text')
   const canEditStatus = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'status')
   const canEndStream = canManuallyEndStream(profile?.role, stream, Boolean(openJob))
@@ -133,34 +136,22 @@ export function GameStreamControls({
   return (
     <>
       {showStream ? (
-        <button
-          type="button"
-          className={
-            displayLive.phase === 'failed' || displayLive.phase === 'check_failed'
-              ? 'stream-icon-button is-failed'
-              : displayLive.busy
-                ? 'stream-icon-button is-busy'
-                : 'stream-icon-button'
-          }
-          aria-label={iconLabel}
-          title={iconLabel}
-          onClick={() => {
+        <StreamCardControl
+          live={displayLive}
+          overlayUrl={overlayUrl}
+          title={title}
+          onOpen={() => {
             setRequestError(null)
             if (board.ready && shouldAutoCheck(stream, Boolean(openJob), Date.now())) setForcingCheck(true)
             setOpen(true)
           }}
-        >
-          {displayLive.busy ? <span className="stream-spinner" aria-hidden="true" /> : <StreamMark />}
-          {displayLive.busy || displayLive.phase === 'failed' || displayLive.phase === 'check_failed' ? (
-            <span className="stream-icon-label">{iconText}</span>
-          ) : null}
-        </button>
+        />
       ) : null}
       {open ? (
         <StreamDialog
           title={title}
           when={`${when.date} · ${when.time} Pacific`}
-          stream={stream}
+          stream={shownStream}
           keys={board.keys}
           live={board.ready ? displayLive : { phase: 'checking', label: 'Loading the stream…', busy: true }}
           loading={!board.ready}
@@ -171,7 +162,13 @@ export function GameStreamControls({
           pending={pending}
           onClose={() => setOpen(false)}
           onCreate={(streamKeyName) => void run('create', { streamKeyName })}
-          onScorecard={(url) => void run('add_scorecard', { scorecardUrl: url })}
+          onScorecard={(url) => {
+            const overlay = overlayUrlFromScorecard(url)
+            if (overlay) setEarlyOverlay(overlay)
+            void run('add_scorecard', { scorecardUrl: url }).then((message) => {
+              if (message) setEarlyOverlay(null)
+            })
+          }}
           onRetry={() => {
             if (!stream) {
               void run('check')
@@ -206,5 +203,81 @@ export function GameStreamControls({
         />
       ) : null}
     </>
+  )
+}
+
+export function StreamCardControl({
+  live,
+  overlayUrl,
+  title,
+  onOpen,
+}: {
+  live: StreamLive
+  overlayUrl: string | null
+  title: string
+  onOpen: () => void
+}) {
+  const iconText =
+    live.phase === 'failed' || live.phase === 'check_failed'
+      ? 'Setup failed'
+      : live.phase === 'checking'
+        ? 'Checking…'
+        : live.label
+  const iconLabel =
+    live.phase === 'failed' || live.phase === 'check_failed' || live.busy
+      ? live.label
+      : `Live stream for ${title}`
+  return (
+    <div className="stream-card-controls">
+      <button
+        type="button"
+        className={
+          live.phase === 'failed' || live.phase === 'check_failed'
+            ? 'stream-icon-button is-failed'
+            : live.busy
+              ? 'stream-icon-button is-busy'
+              : 'stream-icon-button'
+        }
+        aria-label={iconLabel}
+        title={iconLabel}
+        onClick={onOpen}
+      >
+        {live.busy ? <span className="stream-spinner" aria-hidden="true" /> : <StreamMark />}
+        {live.busy || live.phase === 'failed' || live.phase === 'check_failed' ? (
+          <span className="stream-icon-label">{iconText}</span>
+        ) : null}
+      </button>
+      {overlayUrl ? <OverlayCopyButton url={overlayUrl} /> : null}
+    </div>
+  )
+}
+
+function OverlayCopyButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  return (
+    <div className="stream-overlay-copy">
+      <button
+        type="button"
+        className="button button-gold stream-overlay-copy-button"
+        aria-label={`Copy overlay link ${url}`}
+        onClick={() => {
+          void (async () => {
+            try {
+              await navigator.clipboard.writeText(url)
+              setError(null)
+              setCopied(true)
+              window.setTimeout(() => setCopied(false), 2000)
+            } catch {
+              setError('Copy failed. Open the stream and copy the link there.')
+            }
+          })()
+        }}
+      >
+        {copied ? 'Copied' : 'Copy overlay'}
+      </button>
+      {error ? <p className="fine-print">{error}</p> : null}
+    </div>
   )
 }
