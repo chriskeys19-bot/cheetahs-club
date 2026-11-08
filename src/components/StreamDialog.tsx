@@ -24,9 +24,11 @@ export function StreamDialog({
   loading,
   canEditText,
   canEditStatus,
+  canEndStream,
   requestError,
   pending,
   pasteOpen = false,
+  confirmEnd = false,
   onClose,
   onCreate,
   onScorecard,
@@ -34,6 +36,7 @@ export function StreamDialog({
   onCheckAgain,
   onPaste,
   onSave,
+  onEnd,
 }: {
   title: string
   when: string
@@ -43,9 +46,11 @@ export function StreamDialog({
   loading: boolean
   canEditText: boolean
   canEditStatus: boolean
+  canEndStream: boolean
   requestError: string | null
   pending: boolean
   pasteOpen?: boolean
+  confirmEnd?: boolean
   onClose: () => void
   onCreate: (streamKeyName: string) => void
   onScorecard: (url: string) => void
@@ -53,10 +58,15 @@ export function StreamDialog({
   onCheckAgain: () => void
   onPaste: (youtubeUrl: string) => void
   onSave: (field: StreamTextField, value: string) => void
+  onEnd: () => void
 }) {
+  const hideEndRef = useRef<() => void>(() => undefined)
   const titleId = useId()
+  const endConfirmId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
+  const cancelEndRef = useRef<HTMLButtonElement>(null)
+  const confirmingRef = useRef(false)
   const [pickedKey, setPickedKey] = useState<string | null>(null)
   const keyName = pickedKey && keys.some((key) => key.name === pickedKey) ? pickedKey : (keys[0]?.name ?? '')
   const [scorecard, setScorecard] = useState('')
@@ -64,10 +74,36 @@ export function StreamDialog({
   const [youtubeDraft, setYoutubeDraft] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const endKey = `${stream?.id ?? ''}:${stream?.status ?? ''}:${String(canEndStream)}`
+  const [endConfirm, setEndConfirm] = useState(() => ({
+    key: endKey,
+    open: confirmEnd && canEndStream,
+  }))
+  let confirmOpen = endConfirm.open
+  if (endConfirm.key !== endKey) {
+    confirmOpen = false
+    setEndConfirm({ key: endKey, open: false })
+  }
+  const confirmingEnd = canEndStream && confirmOpen
+
+  function showEndConfirm() {
+    confirmingRef.current = true
+    setEndConfirm({ key: endKey, open: true })
+  }
+
+  function hideEndConfirm() {
+    confirmingRef.current = false
+    setEndConfirm({ key: endKey, open: false })
+  }
 
   useEffect(() => {
     closeRef.current = onClose
-  }, [onClose])
+    confirmingRef.current = confirmingEnd
+    hideEndRef.current = () => {
+      confirmingRef.current = false
+      setEndConfirm({ key: endKey, open: false })
+    }
+  }, [onClose, confirmingEnd, endKey])
 
   useEffect(() => {
     const previous = document.activeElement
@@ -75,7 +111,12 @@ export function StreamDialog({
     document.body.style.overflow = 'hidden'
     dialogRef.current?.focus()
     function onKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeRef.current()
+      if (event.key !== 'Escape') return
+      if (confirmingRef.current) {
+        hideEndRef.current()
+        return
+      }
+      closeRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => {
@@ -84,6 +125,11 @@ export function StreamDialog({
       if (previous instanceof HTMLElement) previous.focus()
     }
   }, [])
+
+  useEffect(() => {
+    if (!confirmingEnd) return
+    cancelEndRef.current?.focus()
+  }, [confirmingEnd])
 
   async function copy(id: string, value: string) {
     try {
@@ -239,6 +285,30 @@ export function StreamDialog({
           <p className="banner banner-error" role="alert">
             {formError}
           </p>
+        ) : null}
+        {!loading && canEndStream && !confirmingEnd ? (
+          <button type="button" className="button button-danger" onClick={showEndConfirm} disabled={pending}>
+            End stream
+          </button>
+        ) : null}
+        {!loading && canEndStream && confirmingEnd ? (
+          <div className="stream-end-confirm" role="group" aria-labelledby={endConfirmId}>
+            <p id={endConfirmId}>End the YouTube broadcast for {title}? This can't be undone.</p>
+            <div className="stream-field-actions">
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={hideEndConfirm}
+                disabled={pending}
+                ref={cancelEndRef}
+              >
+                Cancel
+              </button>
+              <button type="button" className="button button-danger" onClick={onEnd} disabled={pending}>
+                {pending ? 'Queuing…' : 'End stream'}
+              </button>
+            </div>
+          </div>
         ) : null}
         {showRetry ? (
           <button type="button" className="button button-navy" onClick={onRetry} disabled={pending}>

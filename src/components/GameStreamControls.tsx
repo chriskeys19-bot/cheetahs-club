@@ -6,6 +6,7 @@ import { eventTitle, isCheetahsLeagueGame, isCompletedLeagueListing } from '../l
 import {
   CHECKING_LABEL,
   canEditStreamField,
+  canManuallyEndStream,
   latestJobFor,
   liveStreamMessage,
   openJobFor,
@@ -120,6 +121,7 @@ export function GameStreamControls({
   const title = eventTitle(event, teamName)
   const canEditText = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'text')
   const canEditStatus = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'status')
+  const canEndStream = canManuallyEndStream(profile?.role, stream, Boolean(openJob))
 
   async function save(field: StreamTextField, value: string) {
     if (!stream) return
@@ -155,6 +157,7 @@ export function GameStreamControls({
           loading={!board.ready}
           canEditText={canEditText}
           canEditStatus={canEditStatus}
+          canEndStream={canEndStream}
           requestError={requestError ?? board.error}
           pending={pending}
           onClose={() => setOpen(false)}
@@ -196,6 +199,7 @@ export function GameStreamControls({
             })
           }}
           onSave={(field, value) => void save(field, value)}
+          onEnd={() => void run('end')}
         />
       ) : null}
     </>

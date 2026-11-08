@@ -9,6 +9,7 @@ import {
   preferredOverlayUrl,
   retryAction,
   shouldAutoCheck,
+  canManuallyEndStream,
   shouldAutoEnd,
   streamControlVisible,
   streamNeedsLiveRefresh,
@@ -237,6 +238,51 @@ test('opening a completed stream queues end once', () => {
   assert.equal(shouldAutoEnd(true, row, true), false)
   assert.equal(shouldAutoEnd(false, row, false), false)
   assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_url: 'https://youtube.com/watch?v=abc' }), false), false)
+})
+
+test('manual end is captains and admins while a YouTube video is up', () => {
+  const live = stream({ status: 'ready', youtube_url: 'https://youtube.com/watch?v=abc' })
+  assert.equal(canManuallyEndStream('captain', live, false), true)
+  assert.equal(canManuallyEndStream('admin', live, false), true)
+  assert.equal(canManuallyEndStream('player', live, false), false)
+  assert.equal(canManuallyEndStream(undefined, live, false), false)
+  assert.equal(canManuallyEndStream('captain', live, true), false)
+  assert.equal(canManuallyEndStream('captain', null, false), false)
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'ended', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    false,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'ending', youtube_video_id: 'abc' }), false),
+    false,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'none', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    false,
+  )
+  assert.equal(canManuallyEndStream('captain', stream({ status: 'ready' }), false), false)
+  assert.equal(
+    canManuallyEndStream('admin', stream({ status: 'awaiting_scorecard', youtube_video_id: 'abc' }), false),
+    true,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'failed', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    true,
+  )
+  assert.equal(canManuallyEndStream('captain', stream({ status: 'failed' }), false), false)
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'setting_up_overlay', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    true,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    true,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), true),
+    false,
+  )
+  assert.equal(shouldAutoEnd(true, stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), true), false)
 })
 
 test('public list is upcoming or live only', () => {

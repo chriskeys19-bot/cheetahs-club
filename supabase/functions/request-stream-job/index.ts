@@ -90,6 +90,8 @@ Deno.serve(async (req: Request) => {
   const parsed = readStreamJobRequest(body)
   if (typeof parsed === 'string') return json(req, 400, { error: parsed })
 
+  // The RPC rejects a manual end unless the caller is a captain or admin.
+  // A completed game stays open to any signed-in member so automatic end still works.
   const queued = await supabase.rpc('request_stream_job', {
     p_schedule_event_id: parsed.scheduleEventId,
     p_action: parsed.action,
@@ -97,7 +99,7 @@ Deno.serve(async (req: Request) => {
   })
   if (queued.error) {
     const message = queued.error.message || 'The stream job could not be queued.'
-    const status = /sign in/i.test(message) ? 401 : /admin|cannot|staff/i.test(message) ? 403 : 400
+    const status = /sign in/i.test(message) ? 401 : /admin|captain|cannot|staff/i.test(message) ? 403 : 400
     return json(req, status, { error: message })
   }
 
