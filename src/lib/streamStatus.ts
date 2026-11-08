@@ -1,3 +1,4 @@
+import { pacificDateInput } from './format.ts'
 import { canManageClub, isClubRole } from './types.ts'
 
 export const STREAM_STATUSES = [
@@ -275,8 +276,26 @@ export function streamControlVisible(input: {
   role: string | null | undefined
 }): boolean {
   if (!input.cheetahsLeague) return false
-  if (input.completed && input.status === 'ended' && input.role !== 'admin') return false
+  const staff = isClubRole(input.role) && canManageClub(input.role)
+  if (input.completed && input.status === 'ended' && !staff) return false
   return true
+}
+
+/**
+ * The Setup failed chip stays while a match can still be fixed.
+ * It comes off the card once the game is completed, or once its Pacific date has passed.
+ */
+export function failedStreamChipHidden(input: {
+  status: StreamStatus | null
+  completed: boolean
+  gameDate: string
+  asOf: number
+}): boolean {
+  if (input.status !== 'failed') return false
+  if (input.completed) return true
+  const today = pacificDateInput(new Date(input.asOf))
+  const day = input.gameDate.slice(0, 10)
+  return Boolean(today) && day < today
 }
 
 export function isPublicStreamStatus(status: StreamStatus): boolean {

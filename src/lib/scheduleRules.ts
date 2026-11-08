@@ -37,16 +37,12 @@ export function isCompletedLeagueListing(
   return event.match_status === 'completed' || event.result !== null
 }
 
-/** League game still to be played: no posted result, and the start is not in the past. */
+/** Cheetahs league game that is not completed. Includes games already underway. */
 export function isUpcomingLeagueGame(
-  event: Pick<ScheduleEvent, 'event_type' | 'team_id' | 'match_status' | 'result' | 'starts_at'>,
+  event: Pick<ScheduleEvent, 'event_type' | 'team_id' | 'match_status' | 'result'>,
   slug: string | null,
-  asOf: number,
 ): boolean {
-  if (!isCheetahsLeagueGame(event, slug)) return false
-  if (event.match_status === 'completed' || event.result !== null) return false
-  const start = new Date(event.starts_at).getTime()
-  return Number.isFinite(start) && start >= asOf
+  return isCheetahsLeagueGame(event, slug) && !isCompletedLeagueListing(event, slug)
 }
 
 export function eventsInPacificWeek(

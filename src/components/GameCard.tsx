@@ -123,7 +123,7 @@ export function GameCard({
           />
         </li>
       </ul>
-      <GameMeta event={event} asOf={asOf} canEdit={canEdit} onVideoSaved={onVideoSaved} />
+      <GameMeta event={event} asOf={asOf} />
       {showNotes && event.notes ? <p className="game-card-notes">{event.notes}</p> : null}
       {canEdit && onEdit && onRemove ? (
         <div className="card-actions">

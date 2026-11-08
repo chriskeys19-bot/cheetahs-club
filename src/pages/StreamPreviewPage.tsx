@@ -7,7 +7,6 @@ import {
   NOT_FOUND_LABEL,
   UPDATING_STREAM_LABEL,
   canManuallyEndStream,
-  preferredOverlayUrl,
   type GameStream,
   type StreamKey,
   type StreamLive,
@@ -148,7 +147,6 @@ export function StreamPreviewPage() {
   const model = previewModel(state)
   const canEnd = canManuallyEndStream(role, model.stream, model.live.busy)
   const roleLabel = { admin: 'Admin', captain: 'Captain', player: 'Player' }[role]
-  const overlayUrl = preferredOverlayUrl(model.stream)
 
   useEffect(() => {
     if (acted?.phase !== 'ending') return
@@ -184,7 +182,6 @@ export function StreamPreviewPage() {
               <li className="game-chip-stream">
                 <StreamCardControl
                   live={model.live}
-                  overlayUrl={overlayUrl}
                   title="Alpha vs Tracy Centurions"
                   onOpen={() => undefined}
                 />

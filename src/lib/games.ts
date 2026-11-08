@@ -60,6 +60,14 @@ export function resultLabel(result: GameResult | null): string {
   return 'Result not posted'
 }
 
+/** Win is green, loss is burgundy, and a tie or no-result is neutral. An unposted result stays navy. */
+export function resultTagClass(result: GameResult | null): string {
+  if (result === 'win') return 'tag tag-win'
+  if (result === 'loss') return 'tag tag-loss'
+  if (result === 'draw' || result === 'nr') return 'tag tag-result-neutral'
+  return 'tag tag-navy'
+}
+
 export function effectiveKit(
   event: Pick<ScheduleEvent, 'event_type' | 'ball_color' | 'dress_code'>,
   slug: string | null,

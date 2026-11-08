@@ -25,6 +25,8 @@ export function StreamDialog({
   canEditText,
   canEditStatus,
   canEndStream,
+  videoUrl = null,
+  canEditVideo = false,
   requestError,
   pending,
   pasteOpen = false,
@@ -36,6 +38,7 @@ export function StreamDialog({
   onCheckAgain,
   onPaste,
   onSave,
+  onSaveVideo,
   onEnd,
 }: {
   title: string
@@ -47,6 +50,8 @@ export function StreamDialog({
   canEditText: boolean
   canEditStatus: boolean
   canEndStream: boolean
+  videoUrl?: string | null
+  canEditVideo?: boolean
   requestError: string | null
   pending: boolean
   pasteOpen?: boolean
@@ -58,6 +63,7 @@ export function StreamDialog({
   onCheckAgain: () => void
   onPaste: (youtubeUrl: string) => void
   onSave: (field: StreamTextField, value: string) => void
+  onSaveVideo?: (url: string | null) => void
   onEnd: () => void
 }) {
   const hideEndRef = useRef<() => void>(() => undefined)
@@ -74,6 +80,8 @@ export function StreamDialog({
   const [youtubeDraft, setYoutubeDraft] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [videoEditing, setVideoEditing] = useState(false)
+  const [videoDraft, setVideoDraft] = useState(videoUrl ?? '')
   const endKey = `${stream?.id ?? ''}:${stream?.status ?? ''}:${String(canEndStream)}`
   const [endConfirm, setEndConfirm] = useState(() => ({
     key: endKey,
@@ -217,6 +225,18 @@ export function StreamDialog({
       ? visibleFields(stream)
       : []
 
+  function submitMatchVideo() {
+    if (!onSaveVideo) return
+    const parsed = parseVideoUrl(videoDraft)
+    if (parsed === 'invalid') {
+      setFormError('Paste a YouTube link (youtube.com or youtu.be), or leave it blank.')
+      return
+    }
+    setFormError(null)
+    onSaveVideo(parsed)
+    setVideoEditing(false)
+  }
+
   function submitPaste() {
     const parsed = parseVideoUrl(youtubeDraft)
     if (parsed === null || parsed === 'invalid') {
@@ -270,6 +290,90 @@ export function StreamDialog({
           </div>
         ) : null}
         {loading ? <p className="empty-copy">Loading the stream…</p> : null}
+        {!loading && canEditVideo ? (
+          <div className="stream-field">
+            <p className="stream-field-label">Match video</p>
+            {videoEditing ? (
+              <form
+                className="form-grid"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  submitMatchVideo()
+                }}
+              >
+                <label>
+                  YouTube link
+                  <input
+                    type="url"
+                    inputMode="url"
+                    autoComplete="off"
+                    placeholder="https://youtu.be/…"
+                    value={videoDraft}
+                    onChange={(event) => setVideoDraft(event.target.value)}
+                    disabled={pending}
+                  />
+                </label>
+                <p className="fine-print">This is the link on the game card. Leave it blank to clear it.</p>
+                <div className="stream-field-actions">
+                  <button type="submit" className="button button-navy" disabled={pending}>
+                    {pending ? 'Saving…' : 'Save link'}
+                  </button>
+                  {videoUrl ? (
+                    <button
+                      type="button"
+                      className="button button-quiet"
+                      disabled={pending}
+                      onClick={() => {
+                        setFormError(null)
+                        onSaveVideo?.(null)
+                        setVideoDraft('')
+                        setVideoEditing(false)
+                      }}
+                    >
+                      Clear
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    disabled={pending}
+                    onClick={() => {
+                      setVideoDraft(videoUrl ?? '')
+                      setFormError(null)
+                      setVideoEditing(false)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {videoUrl ? (
+                  <a href={videoUrl} target="_blank" rel="noreferrer">
+                    {videoUrl}
+                  </a>
+                ) : (
+                  <p className="stream-value">No match video yet</p>
+                )}
+                <div className="stream-field-actions">
+                  <button
+                    type="button"
+                    className="button button-quiet"
+                    disabled={pending}
+                    onClick={() => {
+                      setVideoDraft(videoUrl ?? '')
+                      setFormError(null)
+                      setVideoEditing(true)
+                    }}
+                  >
+                    {videoUrl ? 'Edit video link' : 'Add video link'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
         {!loading ? (
           <p className={live.busy ? 'stream-status is-busy' : 'stream-status'} role="status" aria-live="polite">
             {live.busy ? <span className="stream-spinner" aria-hidden="true" /> : null}

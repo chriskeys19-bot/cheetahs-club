@@ -11,6 +11,7 @@ import {
   shouldAutoCheck,
   canManuallyEndStream,
   shouldAutoEnd,
+  failedStreamChipHidden,
   streamControlVisible,
   streamNeedsLiveRefresh,
   streamWithEarlyOverlay,
@@ -222,6 +223,10 @@ test('ended completed games hide the stream control from players', () => {
     false,
   )
   assert.equal(
+    streamControlVisible({ cheetahsLeague: true, completed: true, status: 'ended', role: 'captain' }),
+    true,
+  )
+  assert.equal(
     streamControlVisible({ cheetahsLeague: true, completed: true, status: 'ended', role: 'admin' }),
     true,
   )
@@ -230,6 +235,26 @@ test('ended completed games hide the stream control from players', () => {
     true,
   )
   assert.equal(streamControlVisible({ cheetahsLeague: false, completed: false, status: null, role: 'admin' }), false)
+})
+
+test('a failed stream chip leaves the card after the match day or a posted result', () => {
+  const nov8 = Date.parse('2026-11-08T20:00:00Z')
+  assert.equal(
+    failedStreamChipHidden({ status: 'failed', completed: false, gameDate: '2026-11-01', asOf: nov8 }),
+    true,
+  )
+  assert.equal(
+    failedStreamChipHidden({ status: 'failed', completed: true, gameDate: '2026-11-08', asOf: nov8 }),
+    true,
+  )
+  assert.equal(
+    failedStreamChipHidden({ status: 'failed', completed: false, gameDate: '2026-11-08', asOf: nov8 }),
+    false,
+  )
+  assert.equal(
+    failedStreamChipHidden({ status: 'ready', completed: true, gameDate: '2026-11-01', asOf: nov8 }),
+    false,
+  )
 })
 
 test('opening a completed stream queues end once', () => {
