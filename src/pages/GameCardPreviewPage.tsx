@@ -5,9 +5,9 @@ import type { GameStream } from '../lib/streamStatus.ts'
 import type { ScheduleEvent } from '../lib/types.ts'
 
 const captain: AuthValue = {
-  session: null,
-  profile: { id: 'user-1', full_name: 'Captain', role: 'captain' },
-  accountProfile: { id: 'user-1', full_name: 'Captain', role: 'captain' },
+  session: { user: { id: 'user-1' } } as AuthValue['session'],
+  profile: { id: 'user-1', full_name: 'Ben Thomas', role: 'player' },
+  accountProfile: { id: 'user-1', full_name: 'Ben Thomas', role: 'admin' },
   authReady: true,
   profileReady: true,
   profileError: null,
@@ -90,9 +90,9 @@ const board: StreamsValue = {
 const cards: ScheduleEvent[] = [
   event({
     id: 'game-win',
-    opponent: 'Cougars Black',
-    result: 'win',
-    match_status: 'completed',
+    opponent: 'Tracy Centurions',
+    result: null,
+    match_status: 'scheduled',
     video_url: 'https://youtube.com/watch?v=cheetahs-win',
     scorecard_url: 'https://cricclubs.com/NCCA/viewScorecard.do?matchId=11',
     team_id: 'team-alpha',
@@ -167,6 +167,7 @@ export function GameCardPreviewPage() {
                   teamSlug={row.team_id === 'team-alpha' ? 'alpha' : 'beta'}
                   asOf={asOf}
                   canEdit
+                  startOpen={row.id === 'game-win'}
                   onVideoSaved={() => undefined}
                 />
               ))}

@@ -31,15 +31,17 @@ export function GameStreamControls({
   teamName,
   teamSlug,
   onVideoReady,
+  startOpen = false,
 }: {
   event: ScheduleEvent
   teamName: string | null
   teamSlug: string | null
   onVideoReady?: (videoUrl: string | null) => void
+  startOpen?: boolean
 }) {
-  const { session, profile } = useAuth()
+  const { session, profile, accountProfile } = useAuth()
   const board = useStreams()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(startOpen)
   const [pending, setPending] = useState(false)
   const [requestError, setRequestError] = useState<string | null>(null)
   const autoEnd = useRef(false)
@@ -140,7 +142,9 @@ export function GameStreamControls({
   const cardLive: StreamLive = staleFailure ? { phase: 'ready', label: `Live stream for ${title}`, busy: false } : displayLive
   const canEditText = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'text')
   const canEditStatus = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'status')
-  const canEndStream = canManuallyEndStream(profile?.role, stream, Boolean(openJob))
+  // End follows the saved profile role. "View as" only changes profile.role, and the
+  // database still treats that account as admin or captain.
+  const canEndStream = canManuallyEndStream(accountProfile?.role ?? profile?.role, shownStream, Boolean(openJob))
 
   async function save(field: StreamTextField, value: string) {
     if (!stream) return
