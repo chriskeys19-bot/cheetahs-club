@@ -51,6 +51,7 @@ export function GameCard({
   onEdit,
   onRemove,
   onVideoSaved,
+  startOpen = false,
 }: {
   id?: string
   event: ScheduleEvent
@@ -65,6 +66,7 @@ export function GameCard({
   onEdit?: () => void
   onRemove?: () => void
   onVideoSaved?: (videoUrl: string | null) => void
+  startOpen?: boolean
 }) {
   const when = formatFixture(event.game_date, event.start_time, event.end_time)
   const played = asOf !== null && new Date(event.starts_at).getTime() < asOf
@@ -120,6 +122,7 @@ export function GameCard({
             teamName={sideName}
             teamSlug={teamSlug}
             onVideoReady={onVideoSaved}
+            startOpen={startOpen}
           />
         </li>
       </ul>

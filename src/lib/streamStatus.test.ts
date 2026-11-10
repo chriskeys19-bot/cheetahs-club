@@ -265,6 +265,20 @@ test('opening a completed stream queues end once', () => {
   assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_url: 'https://youtube.com/watch?v=abc' }), false), false)
 })
 
+test('an admin can end the ready Tracy Centurions stream when no job is open', () => {
+  const row = stream({
+    id: '273c75ef-a021-4948-ac78-92ec49464886',
+    status: 'ready',
+    youtube_url: 'https://www.youtube.com/watch?v=adkJ6snKORQ',
+    youtube_video_id: 'adkJ6snKORQ',
+  })
+  assert.equal(canManuallyEndStream('admin', row, false), true)
+  assert.equal(canManuallyEndStream('captain', row, false), true)
+  assert.equal(canManuallyEndStream('player', row, false), false)
+  assert.equal(canManuallyEndStream('admin', row, true), false)
+  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended' }, false), false)
+})
+
 test('manual end is captains and admins while a YouTube video is up', () => {
   const live = stream({ status: 'ready', youtube_url: 'https://youtube.com/watch?v=abc' })
   assert.equal(canManuallyEndStream('captain', live, false), true)

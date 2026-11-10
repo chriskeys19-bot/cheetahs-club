@@ -380,16 +380,6 @@ export function StreamDialog({
             <span>{live.label}</span>
           </p>
         ) : null}
-        {requestError ? (
-          <p className="banner banner-error" role="alert">
-            {requestError}
-          </p>
-        ) : null}
-        {formError ? (
-          <p className="banner banner-error" role="alert">
-            {formError}
-          </p>
-        ) : null}
         {!loading && canEndStream && !confirmingEnd ? (
           <button type="button" className="button button-danger" onClick={showEndConfirm} disabled={pending}>
             End stream
@@ -413,6 +403,16 @@ export function StreamDialog({
               </button>
             </div>
           </div>
+        ) : null}
+        {requestError ? (
+          <p className="banner banner-error" role="alert">
+            {requestError}
+          </p>
+        ) : null}
+        {formError ? (
+          <p className="banner banner-error" role="alert">
+            {formError}
+          </p>
         ) : null}
         {showRetry ? (
           <button type="button" className="button button-navy" onClick={onRetry} disabled={pending}>
