@@ -1,8 +1,9 @@
 /**
- * Appends Cheetahs Club feedback to the Feedback tab.
- * Spreadsheet 1OjRuhozgCTz5myfPkYMjteSE50WeQVimS1dNL61mSpQ, owned by
- * cheetahscc123@gmail.com. Bind this project from that file:
- * Extensions → Apps Script. Setup is in docs/feedback-sync.md.
+ * Standalone Apps Script for Cheetahs Club feedback.
+ * It is not bound to the spreadsheet. cheetahscc123@gmail.com owns this
+ * project and the spreadsheet, and that account deploys the web app.
+ * The script opens spreadsheet 1OjRuhozgCTz5myfPkYMjteSE50WeQVimS1dNL61mSpQ
+ * with SpreadsheetApp.openById. Setup is in docs/feedback-sync.md.
  * The shared secret is Script property SYNC_SECRET.
  * Row ids live on the hidden "Sync ids" sheet so a retry does not append twice.
  * Visible rows go only to the Feedback tab, columns A–E.
@@ -48,11 +49,16 @@ function respond(payload) {
   return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
 
-function appendRows(rows) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (ss.getId() !== SPREADSHEET_ID) {
-    throw new Error('Bind this script to the club feedback spreadsheet.');
+function clubSpreadsheet() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  if (!ss || ss.getId() !== SPREADSHEET_ID) {
+    throw new Error('Could not open the club feedback spreadsheet.');
   }
+  return ss;
+}
+
+function appendRows(rows) {
+  var ss = clubSpreadsheet();
   var sheet = ss.getSheetByName(FEEDBACK_TAB);
   if (!sheet) throw new Error('The Feedback tab is missing.');
   ensureHeader(sheet);

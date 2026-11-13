@@ -1,9 +1,9 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.81.1'
 import {
+  echoFetch,
   interpretSheetResponse,
   isAllowedSheetUrl,
   readSyncRequest,
-  redirectTarget,
   scrubSheetError,
   secretsMatch,
   sheetRequestBody,
@@ -123,13 +123,11 @@ async function postSheet(url: string, body: string): Promise<{ status: number; j
   })
   let response = first
   if (first.status >= 300 && first.status < 400) {
-    const next = redirectTarget(url, first.headers.get('location') ?? '')
-    if (!next) return { status: 502, json: null }
-    response = await fetch(next, {
-      method: 'POST',
+    const follow = echoFetch(url, first.status, first.headers.get('location'))
+    if (!follow) return { status: 502, json: null }
+    response = await fetch(follow.url, {
+      method: follow.method,
       redirect: 'follow',
-      headers: { 'Content-Type': 'application/json' },
-      body,
       signal: AbortSignal.timeout(20_000),
     })
   }

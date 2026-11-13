@@ -60,6 +60,24 @@ export function redirectTarget(from: string, location: string): string | null {
   }
 }
 
+export type EchoFetch = {
+  url: string
+  method: 'GET'
+}
+
+// Apps Script answers the POST with 302. The echo URL on
+// script.googleusercontent.com accepts only GET. A second POST is HTTP 405.
+// The body already went out on the first request. This follow-up has no body
+// and no Content-Type.
+export function echoFetch(from: string, status: number, location: string | null): EchoFetch | null {
+  if (status < 300 || status >= 400) return null
+  const header = location?.trim() ?? ''
+  if (!header) return null
+  const url = redirectTarget(from, header)
+  if (!url) return null
+  return { url, method: 'GET' }
+}
+
 export function readSyncRequest(body: unknown): SyncRequest | string {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Send JSON.'
   const record = body as Record<string, unknown>

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   interpretSheetResponse,
   isAllowedSheetUrl,
+  echoFetch,
   readSyncRequest,
   redirectTarget,
   scrubSheetError,
@@ -57,6 +58,18 @@ test('only the Apps Script hosts are called', () => {
     'https://script.googleusercontent.com/macros/echo',
   )
   assert.equal(redirectTarget('https://script.google.com/macros/s/abc/exec', 'https://evil.test/steal'), null)
+})
+
+test('the Apps Script echo URL is read with GET and no body', () => {
+  const from = 'https://script.google.com/macros/s/abc/exec'
+  const location = 'https://script.googleusercontent.com/macros/echo?user_content_key=abc'
+  const follow = echoFetch(from, 302, location)
+  assert.deepEqual(follow, { url: location, method: 'GET' })
+  assert.equal(follow && 'body' in follow, false)
+  assert.equal(follow && 'headers' in follow, false)
+  assert.equal(echoFetch(from, 302, 'https://evil.test/steal'), null)
+  assert.equal(echoFetch(from, 302, '   '), null)
+  assert.equal(echoFetch(from, 200, location), null)
 })
 
 test('a sheet response marks duplicates synced and keeps a failed row unsynced', () => {
