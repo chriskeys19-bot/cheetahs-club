@@ -186,14 +186,17 @@ function sideLabel(team: Team | null, clubWide: boolean): string | null {
 
 function fixtureHref(event: ScheduleEvent, slug: string | null): string {
   const hash = `#fixture-${event.id}`
-  if (event.event_type === 'practice') return `/schedules?side=practice${hash}`
+  // The fixture card is on the list. Name that view so a fresh calendar default
+  // does not drop the hash target.
+  const view = 'view=list'
+  if (event.event_type === 'practice') return `/schedules?${view}&side=practice${hash}`
   if (
     event.event_type === 'league_game' &&
     (slug === 'alpha' || slug === 'beta' || slug === 'gamma')
   ) {
-    return `/schedules?side=${slug}${hash}`
+    return `/schedules?${view}&side=${slug}${hash}`
   }
-  return `/schedules${hash}`
+  return `/schedules?${view}${hash}`
 }
 
 function fromSchedule(

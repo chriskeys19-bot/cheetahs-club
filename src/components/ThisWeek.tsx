@@ -9,11 +9,12 @@ function sideTeam(teams: Team[], teamId: string | null): Team | null {
 }
 
 function scheduleHref(event: ScheduleEvent, teams: Team[]): string {
-  if (event.event_type === 'practice' && event.team_id === null) return '/schedules?side=practice'
+  const view = 'view=list'
+  if (event.event_type === 'practice' && event.team_id === null) return `/schedules?${view}&side=practice`
   const slug = teams.find((team) => team.id === event.team_id)?.slug
-  if (slug === 'alpha' || slug === 'beta' || slug === 'gamma') return `/schedules?side=${slug}`
-  if (event.event_type === 'practice') return '/schedules?side=practice'
-  return '/schedules'
+  if (slug === 'alpha' || slug === 'beta' || slug === 'gamma') return `/schedules?${view}&side=${slug}`
+  if (event.event_type === 'practice') return `/schedules?${view}&side=practice`
+  return `/schedules?${view}`
 }
 
 export function ThisWeek({

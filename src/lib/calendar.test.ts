@@ -157,7 +157,7 @@ test('league games stay on Alpha, Beta, and Gamma, with one dot per type', () =>
   assert.equal(nov1[0]?.showResult, true)
   assert.equal(nov1[0]?.result, 'win')
   assert.equal(nov1[0]?.videoUrl, 'https://youtu.be/cheetahs-win')
-  assert.equal(nov1[0]?.href, '/schedules?side=alpha#fixture-a')
+  assert.equal(nov1[0]?.href, '/schedules?view=list&side=alpha#fixture-a')
   assert.equal(nov1[1]?.result, 'loss')
   assert.deepEqual(dotsForDay(nov1), ['league'])
 
@@ -169,7 +169,7 @@ test('league games stay on Alpha, Beta, and Gamma, with one dot per type', () =>
       ['practice', '8:30 PM – 10:00 PM PT', 'Cheetahs practice', 'Club-wide'],
     ],
   )
-  assert.equal(nov11[1]?.href, '/schedules?side=practice#fixture-practice')
+  assert.equal(nov11[1]?.href, '/schedules?view=list&side=practice#fixture-practice')
   assert.deepEqual(dotsForDay(nov11), ['practice', 'umpiring'])
 })
 
