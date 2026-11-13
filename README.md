@@ -2,7 +2,7 @@
 
 Clubhouse for Cheetahs Cricket Club. Members sign in with Google or with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.png` is the brand mark.
 
-Feedback is stored in Supabase. The browser does not call Google Sheets. See [docs/feedback-sync.md](docs/feedback-sync.md) for the sheet columns a later sync should write.
+Feedback is stored in Supabase. The browser does not call Google Sheets. An Edge Function appends each new row to the club sheet. See [docs/feedback-sync.md](docs/feedback-sync.md).
 
 ## Stack
 
@@ -106,7 +106,7 @@ Apply `supabase/migrations/20261106180000_splitwise_snapshot.sql` on project `lu
 | `SPLITWISE_GROUP_ID` | Numeric id from `https://secure.splitwise.com/groups/<id>`. Not `0` (that id is non-group expenses). |
 | `SPLITWISE_GROUP_NAME` | Optional exact group name if `SPLITWISE_GROUP_ID` is unset. The id wins when both are set. |
 | `VENMO_USERNAME` | Club Venmo handle, without `@`. Public. After a refresh, pay links use this when `VITE_VENMO_ENABLED=true`. The placeholder `cheetahs` is not a handle. |
-| `SPLITWISE_CRON_SECRET` | Optional. Long random string for the hourly job. Not the service role key. |
+| `SPLITWISE_CRON_SECRET` | Optional legacy fallback. The scheduled job does not need it. The migration stores a random secret in Vault and the function reads that. |
 | `SPLITWISE_CLIENT_ID`, `SPLITWISE_CLIENT_SECRET`, `SPLITWISE_REFRESH_TOKEN` | Optional OAuth refresh, used only when `SPLITWISE_API_KEY` is unset. |
 
 Venmo pay buttons stay hidden until a Pages build sets `VITE_VENMO_ENABLED=true` and a real handle is available. `VITE_VENMO_USERNAME` is the public fallback handle baked in at build time, before the first refresh. It is ignored when it is unset or still `cheetahs`. After a refresh, pay links use `VENMO_USERNAME` only when that secret is a real handle and Venmo is enabled. Pages build vars are the two Supabase values plus these Venmo settings. Never add a Splitwise secret there.
@@ -114,17 +114,19 @@ Venmo pay buttons stay hidden until a Pages build sets `VITE_VENMO_ENABLED=true`
 ```bash
 supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy splitwise-ensure-member --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy sync-feedback-sheet --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase secrets set \
   SPLITWISE_API_KEY='the treasurer key' \
   SPLITWISE_GROUP_ID='12345678' \
   VENMO_USERNAME='the-club-handle' \
-  SPLITWISE_CRON_SECRET="$(openssl rand -hex 32)" \
   --project-ref lutcbvzunjcosncvdyke
 ```
 
 `sync-splitwise` still requires a captain or admin JWT, the cron header, or the service role. `--no-verify-jwt` only lets the cron request reach that check. `splitwise-ensure-member` keeps the gateway JWT check on. Do not pass `--no-verify-jwt` for it. Apply `supabase/migrations/20261107043000_splitwise_membership.sql` first. Sign-in adds the member's email to the group when it is missing. An admin can backfill from Dues. Players read only their mapped balance row.
 
-`public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity.
+Apply `supabase/migrations/20261113043000_splitwise_twice_daily_sync.sql` so the copy refreshes at 00:15 and 12:15 UTC. That migration enables `pg_cron` and `pg_net`, stores the cron secret in Vault, and does not ask anyone to paste `SPLITWISE_CRON_SECRET`. Redeploy `sync-splitwise` after it so the function accepts the Vault secret. Dues shows the last successful sync in the viewer's local time zone.
+
+`public.feedback` holds app feedback. Signed-in members insert their own rows. Admins can read all of them. Row level security enforces that. A category tag (`[Feature] `, `[Bug] `, or `[Other] `) is stored at the start of `body`. The insert still uses the same columns, and `stamp_feedback` still stamps identity. Apply `supabase/migrations/20261113043100_feedback_google_sheet.sql` and deploy `sync-feedback-sheet` to copy rows onto the club sheet. The insert is saved even when the sheet write fails. Setup is in [docs/feedback-sync.md](docs/feedback-sync.md).
 
 Phase 2 adds `announcements`, `activities`, `schedule_events`, `polls`, `poll_options`, and `poll_votes`. Signed-in members can read them. Admins and captains can change announcements, activities, schedule events, and polls. Any signed-in member can vote once on an open poll. Vote totals come from `public.poll_tallies()`, which does not return voter ids.
 

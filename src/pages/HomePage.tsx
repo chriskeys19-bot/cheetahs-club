@@ -11,6 +11,7 @@ import { pacificWeekBounds } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
 import { eventsInPacificWeek, isCheetahsLeagueGame, loadSchedule } from '../lib/schedules.ts'
 import { loadSplitwiseHome, type SplitwiseHome } from '../lib/splitwise.ts'
+import { splitwiseSyncLabel } from '../lib/splitwiseSyncLabel.ts'
 import { loadTeams } from '../lib/teams.ts'
 import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
@@ -173,6 +174,13 @@ export function HomePage() {
           ) : (
             <p>You&apos;re settled on the Splitwise ledger.</p>
           )}
+          <p className="fine-print">
+            {splitwiseSyncLabel({
+              syncedAt: dues.syncedAt,
+              lastAttemptFailed: dues.lastAttemptFailed,
+              lastAttemptAt: dues.lastAttemptAt,
+            })}
+          </p>
           {staff && dues.owedByMembersCents !== null ? (
             <p className="fine-print">
               Members owe {formatCents(dues.owedByMembersCents)}

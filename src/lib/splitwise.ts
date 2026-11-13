@@ -1,11 +1,17 @@
 import { actionError } from './errors.ts'
+import { missingNewSyncColumns, type SplitwiseSyncSource } from './splitwiseSyncLabel.ts'
 import { supabase } from './supabase.ts'
+
+export type { SplitwiseSyncSource } from './splitwiseSyncLabel.ts'
 
 export type SplitwiseMeta = {
   groupId: number | null
   groupName: string | null
   venmoUsername: string
   syncedAt: string | null
+  syncSource: SplitwiseSyncSource | null
+  lastAttemptAt: string | null
+  lastAttemptFailed: boolean
 }
 
 export type SplitwiseBalance = {
@@ -80,6 +86,8 @@ export type SplitwiseHome = {
   owedByMembersCents: number | null
   owedToMembersCents: number | null
   syncedAt: string
+  lastAttemptAt: string | null
+  lastAttemptFailed: boolean
   groupName: string | null
   venmoUsername: string
 }
@@ -128,6 +136,11 @@ function parseCents(value: unknown): number | null {
   return amount
 }
 
+function parseSyncSource(value: unknown): SplitwiseSyncSource | null {
+  if (value === 'scheduled' || value === 'manual' || value === 'service') return value
+  return null
+}
+
 function parseMeta(value: unknown): SplitwiseMeta | null {
   if (!value || typeof value !== 'object') return null
   const row = value as Record<string, unknown>
@@ -138,7 +151,25 @@ function parseMeta(value: unknown): SplitwiseMeta | null {
     groupName: typeof row.group_name === 'string' ? row.group_name : null,
     venmoUsername: row.venmo_username,
     syncedAt: typeof row.synced_at === 'string' ? row.synced_at : null,
+    syncSource: parseSyncSource(row.sync_source),
+    lastAttemptAt: typeof row.last_attempt_at === 'string' ? row.last_attempt_at : null,
+    lastAttemptFailed: row.last_attempt_failed === true,
   }
+}
+
+const META_COLUMNS = 'group_id, group_name, venmo_username, synced_at, sync_source, last_attempt_at, last_attempt_failed'
+const META_COLUMNS_LEGACY = 'group_id, group_name, venmo_username, synced_at'
+const HOME_META_COLUMNS = 'group_name, venmo_username, synced_at, sync_source, last_attempt_at, last_attempt_failed'
+const HOME_META_COLUMNS_LEGACY = 'group_name, venmo_username, synced_at'
+
+async function loadMeta(columns: string, legacyColumns: string) {
+  const client = supabase
+  if (!client) return { data: null, error: { message: 'Supabase is not configured.' } }
+  const first = await client.from('splitwise_meta').select(columns).eq('id', 1).maybeSingle()
+  if (first.error && missingNewSyncColumns(first.error.message)) {
+    return client.from('splitwise_meta').select(legacyColumns).eq('id', 1).maybeSingle()
+  }
+  return first
 }
 
 function parseBalances(value: unknown): SplitwiseBalance[] {
@@ -281,7 +312,7 @@ export async function loadSplitwiseSnapshot(staff: boolean): Promise<{ snapshot:
   if (!supabase) return { snapshot: emptySnapshot, error: 'Supabase is not configured.' }
   const client = supabase
   const [metaResult, balanceResult, expenseResult, shareResult, debtResult, statusResult] = await Promise.all([
-    client.from('splitwise_meta').select('group_id, group_name, venmo_username, synced_at').eq('id', 1).maybeSingle(),
+    loadMeta(META_COLUMNS, META_COLUMNS_LEGACY),
     client.from('splitwise_balances').select('splitwise_user_id, profile_id, email, display_name, balance_cents, synced_at').limit(300),
     client.from('splitwise_expenses').select('splitwise_expense_id, description, cost_cents, expense_at, is_payment').limit(40),
     client.from('splitwise_shares').select('splitwise_expense_id, splitwise_user_id, profile_id, paid_cents, owed_cents').limit(2000),
@@ -317,7 +348,7 @@ export async function loadSplitwiseHome(userId: string, staff: boolean): Promise
   if (!supabase) return null
   const client = supabase
   const [metaResult, mineResult, statusResult] = await Promise.all([
-    client.from('splitwise_meta').select('group_name, venmo_username, synced_at').eq('id', 1).maybeSingle(),
+    loadMeta(HOME_META_COLUMNS, HOME_META_COLUMNS_LEGACY),
     client.from('splitwise_balances').select('balance_cents').eq('profile_id', userId).limit(20),
     staff
       ? client.from('splitwise_status').select('owed_by_members_cents, owed_to_members_cents').eq('id', 1).maybeSingle()
@@ -339,6 +370,8 @@ export async function loadSplitwiseHome(userId: string, staff: boolean): Promise
     owedByMembersCents: staff ? parseCents(status?.owed_by_members_cents) : null,
     owedToMembersCents: staff ? parseCents(status?.owed_to_members_cents) : null,
     syncedAt: meta.syncedAt,
+    lastAttemptAt: meta.lastAttemptAt,
+    lastAttemptFailed: meta.lastAttemptFailed,
     groupName: meta.groupName,
     venmoUsername: meta.venmoUsername,
   }
