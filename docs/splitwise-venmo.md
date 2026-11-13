@@ -56,7 +56,7 @@ Set these on project `lutcbvzunjcosncvdyke`. They are Edge Function secrets, not
 | `SPLITWISE_GROUP_ID` | Group id. Preferred. |
 | `SPLITWISE_GROUP_NAME` | Exact group name, used only when the id is unset. |
 | `VENMO_USERNAME` | Club handle without `@`. Written into `splitwise_meta` on a successful refresh. Not a secret, but keep it next to the other settings so a rebuild is not required. Leave it unset until the club wants pay links. The stored sentinel `cheetahs` is not shown. |
-| `SPLITWISE_CRON_SECRET` | Optional shared secret for the scheduled job. Generate with `openssl rand -hex 32`. Do not reuse the service role key. |
+| `SPLITWISE_CRON_SECRET` | Optional legacy fallback. Leave it unset. The migration stores a random secret in Vault under `splitwise_cron_secret`, and the function reads that. Do not reuse the service role key if you set this anyway. |
 | `SPLITWISE_CLIENT_ID` | Optional. OAuth client id. Ignored when `SPLITWISE_API_KEY` is set. |
 | `SPLITWISE_CLIENT_SECRET` | Optional. OAuth client secret. |
 | `SPLITWISE_REFRESH_TOKEN` | Optional. OAuth refresh token for the treasurer. If Splitwise returns a new refresh token, the function logs that you should update this secret. It does not log the token. |
@@ -70,7 +70,6 @@ supabase secrets set \
   SPLITWISE_API_KEY='the treasurer key' \
   SPLITWISE_GROUP_ID='12345678' \
   VENMO_USERNAME='the-club-handle' \
-  SPLITWISE_CRON_SECRET="$(openssl rand -hex 32)" \
   --project-ref lutcbvzunjcosncvdyke
 
 supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
@@ -80,7 +79,7 @@ supabase functions deploy sync-splitwise --no-verify-jwt --project-ref lutcbvzun
 supabase functions deploy splitwise-ensure-member --project-ref lutcbvzunjcosncvdyke
 ```
 
-`verify_jwt` is off for `sync-splitwise` so pg_cron can call that function. The handler still rejects the request unless the caller is a signed-in captain or admin, the `x-splitwise-cron` header matches `SPLITWISE_CRON_SECRET`, or the caller is the service role (only `splitwise-ensure-member` uses that, to refresh after an add).
+`verify_jwt` is off for `sync-splitwise` so pg_cron can call that function. The handler still rejects the request unless the caller is a signed-in captain or admin, the `x-splitwise-cron` header matches the Vault secret `splitwise_cron_secret` (or the legacy `SPLITWISE_CRON_SECRET` env value), or the caller is the service role (only `splitwise-ensure-member` uses that, to refresh after an add).
 
 `verify_jwt` is on for `splitwise-ensure-member`. The gateway rejects a missing or invalid user JWT before the handler runs. The handler calls `getUser` again. `{ "all": true }` is rejected unless `profiles.role` is `admin`. Apply `supabase/migrations/20261107043000_splitwise_membership.sql` before deploying the function.
 
@@ -90,7 +89,7 @@ supabase functions deploy splitwise-ensure-member --project-ref lutcbvzunjcosncv
 
 `splitwise_status` and `splitwise_debts` are staff-only. That is the club rollup (how much members owe, how much they are owed) and the simplified debts. Players do not get those totals.
 
-`splitwise_meta` holds the group name, the Venmo handle, and `synced_at`. Any signed-in member can read it. It has no balances and no key.
+`splitwise_meta` holds the group name, the Venmo handle, `synced_at`, `sync_source`, and whether the last attempt failed. Any signed-in member can read it. It has no balances and no key. The error text stays on `splitwise_status`.
 
 `splitwise_membership` holds `splitwise_user_id`, `splitwise_added_at`, and `last_error` for one profile. A member can read only their own row. Writes are service role only, from `splitwise-ensure-member`.
 
@@ -100,32 +99,26 @@ A captain opening Dues refreshes when the copy is older than 15 minutes. The but
 
 The recent expense list is the latest USD rows from `get_expenses` (one page, then the newest 40). Balances come from `get_group` and are the full net, not a sum of that short list.
 
-## Optional hourly refresh
+## Scheduled refresh
 
-`pg_cron` and `pg_net` were not enabled on the club project when this landed. Enable them under Database → Extensions, store the project URL and the cron secret in Vault, then schedule the call. Do not put the service role key in the cron header. The dedicated cron secret only authorizes this sync.
+Apply `supabase/migrations/20261113043000_splitwise_twice_daily_sync.sql`, then redeploy `sync-splitwise`. The migration enables `pg_cron` and `pg_net`, stores `https://lutcbvzunjcosncvdyke.supabase.co` in Vault as `project_url` when that name is empty, and stores a random `splitwise_cron_secret` when that name is empty. It schedules `sync-splitwise-twice-daily` for 00:15 and 12:15 UTC. It unschedules `sync-splitwise-hourly` if that older job exists.
 
-Supabase notes that `pg_net` can leave the header value in `net.http_request_queue` until the request is sent. That is why this job uses `SPLITWISE_CRON_SECRET` and not the database service role.
+Nobody pastes the cron secret into the dashboard. pg_cron reads it from Vault when the job runs. The function reads the same row through `public.splitwise_cron_secret()`, which only the service role can execute. `SPLITWISE_CRON_SECRET` is accepted too, so an older env value keeps working, but it is not required.
+
+A successful run sets `splitwise_meta.synced_at` and `sync_source` (`scheduled`, `manual`, or `service`). A failed run sets `last_attempt_failed` and leaves `synced_at` on the previous success. Players can read those columns. The error text stays on `splitwise_status`, which is staff-only. Dues shows the last success in the viewer's local time zone.
+
+Supabase notes that `pg_net` can leave the header value in `net.http_request_queue` until the request is sent. That is why this job uses the dedicated Vault secret and not the database service role.
+
+To rotate the cron secret later, without redeploying the function:
 
 ```sql
-select vault.create_secret('https://lutcbvzunjcosncvdyke.supabase.co', 'project_url');
-select vault.create_secret('the same value as SPLITWISE_CRON_SECRET', 'splitwise_cron_secret');
-
-select cron.schedule(
-  'sync-splitwise-hourly',
-  '15 * * * *',
-  $$
-  select net.http_post(
-    url := (select decrypted_secret from vault.decrypted_secrets where name = 'project_url')
-      || '/functions/v1/sync-splitwise',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'x-splitwise-cron', (select decrypted_secret from vault.decrypted_secrets where name = 'splitwise_cron_secret')
-    ),
-    body := '{"force":false}'::jsonb
-  );
-  $$
+select vault.update_secret(
+  (select id from vault.secrets where name = 'splitwise_cron_secret'),
+  encode(extensions.gen_random_bytes(32), 'hex')
 );
 ```
+
+If `supabase db push` stops on `create extension`, enable `pg_cron` and `pg_net` under Database → Extensions, then run the migration again.
 
 ## Pay link shape
 

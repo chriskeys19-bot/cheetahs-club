@@ -4,8 +4,10 @@ import { formatCents } from '../lib/money.ts'
 import {
   netBalance,
   type SplitwiseBalance,
+  type SplitwiseMeta,
   type SplitwiseSnapshot,
 } from '../lib/splitwise.ts'
+import { splitwiseSyncLabel, splitwiseSyncSourceLabel } from '../lib/splitwiseSyncLabel.ts'
 import type { SplitwiseAddSummary } from '../lib/splitwiseMembership.ts'
 import { duesVenmoNote, resolveVenmoUsername, venmoFeatureEnabled, venmoPayHandle } from '../lib/venmo.ts'
 
@@ -20,6 +22,15 @@ function balanceWords(cents: number): string {
 
 function nameFor(balances: SplitwiseBalance[], id: number): string {
   return balances.find((row) => row.splitwiseUserId === id)?.displayName ?? 'Splitwise member'
+}
+
+function syncedLine(meta: SplitwiseMeta | null, withGroup: boolean): string {
+  return splitwiseSyncLabel({
+    syncedAt: meta?.syncedAt ?? null,
+    lastAttemptFailed: meta?.lastAttemptFailed ?? false,
+    lastAttemptAt: meta?.lastAttemptAt ?? null,
+    groupName: withGroup ? meta?.groupName : null,
+  })
 }
 
 function addSummaryText(summary: SplitwiseAddSummary): string {
@@ -61,7 +72,7 @@ export function SplitwiseStaffSummary({
   onAddAll: () => void
 }) {
   const status = snapshot.status
-  const syncedAt = snapshot.meta?.syncedAt ?? null
+  const sourceLabel = splitwiseSyncSourceLabel(snapshot.meta?.syncSource ?? null)
   const venmoHandle = resolveVenmoUsername(snapshot.meta)
   const showVenmoSetup = venmoFeatureEnabled() && !venmoHandle
   return (
@@ -85,11 +96,10 @@ export function SplitwiseStaffSummary({
         </li>
       </ul>
       <p className="fine-print">
-        {syncedAt
-          ? `Last copy ${formatPacific(syncedAt)}${snapshot.meta?.groupName ? ` · ${snapshot.meta.groupName}` : ''}.`
-          : 'No copy yet. Refresh pulls the Cheetahs group.'}
+        {syncedLine(snapshot.meta, true)}
         {status?.accountLabel ? ` Token account: ${status.accountLabel}.` : ''}
       </p>
+      {snapshot.meta?.syncedAt && sourceLabel ? <p className="fine-print">{sourceLabel}</p> : null}
       <p className="fine-print">
         These totals are the Splitwise group. The in-app ledger below them is a scratch pad and does not change
         Splitwise.
@@ -200,6 +210,7 @@ export function SplitwiseMine({
         <p className="kicker">From Splitwise</p>
         <h2 id="splitwise-mine-heading">My balance</h2>
       </div>
+      {!loading && !error ? <p className="fine-print">{syncedLine(snapshot.meta, false)}</p> : null}
       {loading ? <p className="empty-copy">Loading the Splitwise copy…</p> : null}
       {error ? (
         <p className="banner banner-error" role="alert">
@@ -207,7 +218,7 @@ export function SplitwiseMine({
         </p>
       ) : null}
       {!loading && !error && !snapshot.meta?.syncedAt ? (
-        <p className="empty-copy">A captain has not loaded the Splitwise group yet.</p>
+        <p className="empty-copy">The club group has not been copied yet.</p>
       ) : null}
       {!loading && !error && snapshot.meta?.syncedAt && mine.length === 0 ? (
         <p>
@@ -220,10 +231,7 @@ export function SplitwiseMine({
           <p className="money-line">
             <span>{balanceWords(net)}</span>
           </p>
-          <p className="fine-print">
-            {snapshot.meta?.syncedAt ? `Copied ${formatPacific(snapshot.meta.syncedAt)}. ` : ''}
-            A negative Splitwise balance is what you owe the group.
-          </p>
+          <p className="fine-print">A negative Splitwise balance is what you owe the group.</p>
           {owes > 0 && username ? (
             <>
               <p className="fine-print">{PAY_NOTE}</p>
@@ -279,6 +287,7 @@ export function SplitwiseBalances({ snapshot }: { snapshot: SplitwiseSnapshot })
           <p className="kicker">Group</p>
           <h2 id="splitwise-balances-heading">Balances</h2>
         </div>
+        <p className="fine-print">{syncedLine(snapshot.meta, false)}</p>
         <p className="fine-print">
           Each row is that member&apos;s Splitwise balance. Negative means they owe the group.{' '}
           {payHandle ? 'Record a Venmo payment in Splitwise, then refresh.' : 'Record a payment in Splitwise, then refresh.'}{' '}

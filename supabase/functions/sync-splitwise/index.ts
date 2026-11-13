@@ -10,7 +10,8 @@ import {
 
 // Copies one Splitwise group into RLS-safe tables.
 // Secrets stay here. The browser sends a captain JWT, or cron sends
-// x-splitwise-cron. This function only GETs Splitwise. It does not create
+// x-splitwise-cron. The cron secret lives in Vault (splitwise_cron_secret).
+// SPLITWISE_CRON_SECRET is only a fallback. This function only GETs Splitwise. It does not create
 // expenses or record payments there.
 //
 // The Self-Serve API is not for commercial products. Club/hobby use.
@@ -115,17 +116,31 @@ async function readForce(req: Request): Promise<{ force: boolean; bypass: boolea
   return { force: record.force === true, bypass: record.bypass === true }
 }
 
-async function authorize(req: Request): Promise<{ ok: true; service: boolean } | Response> {
-  const cronGiven = req.headers.get('x-splitwise-cron') ?? ''
-  const cronExpected = (Deno.env.get('SPLITWISE_CRON_SECRET') ?? '').trim()
-  if (cronGiven && secretsMatch(cronGiven, cronExpected)) return { ok: true, service: false }
+type SyncSource = 'scheduled' | 'manual' | 'service'
+
+async function vaultCronSecret(admin: AdminClient): Promise<string> {
+  const result = await admin.rpc('splitwise_cron_secret')
+  if (result.error || typeof result.data !== 'string') return ''
+  return result.data.trim()
+}
+
+async function authorize(req: Request): Promise<{ ok: true; service: boolean; source: SyncSource } | Response> {
+  const cronGiven = (req.headers.get('x-splitwise-cron') ?? '').trim()
+  if (cronGiven) {
+    const admin = adminClient()
+    const fromVault = admin ? await vaultCronSecret(admin) : ''
+    const fromEnv = (Deno.env.get('SPLITWISE_CRON_SECRET') ?? '').trim()
+    if (secretsMatch(cronGiven, fromVault) || secretsMatch(cronGiven, fromEnv)) {
+      return { ok: true, service: false, source: 'scheduled' }
+    }
+  }
 
   const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
   // splitwise-ensure-member calls this after a successful add so the dues
   // copy includes the new member. The browser never has this key. bypass in
   // the body is ignored unless this match succeeds. Do not log the header.
   const serviceKey = (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '').trim()
-  if (jwt && serviceKey && secretsMatch(jwt, serviceKey)) return { ok: true, service: true }
+  if (jwt && serviceKey && secretsMatch(jwt, serviceKey)) return { ok: true, service: true, source: 'service' }
   if (!jwt || jwt.split('.').length !== 3) return json(req, 401, { error: 'Sign in as a captain or admin, then refresh.' })
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -145,7 +160,7 @@ async function authorize(req: Request): Promise<{ ok: true; service: boolean } |
   if (profileResult.error || (role !== 'admin' && role !== 'captain')) {
     return json(req, 403, { error: 'Captains and admins can refresh Splitwise.' })
   }
-  return { ok: true, service: false }
+  return { ok: true, service: false, source: 'manual' }
 }
 
 function adminClient(): AdminClient | null {
@@ -456,6 +471,7 @@ Deno.serve(async (req: Request) => {
     group_name: cleanLabel(groupRecord.name, 200, group.name),
     venmo_username: venmo,
     synced_at: syncedAt,
+    sync_source: authResult.source,
     account_label: personName(account?.first_name, account?.last_name, ''),
     detail: {
       venmo_placeholder: venmo === VENMO_PLACEHOLDER,

@@ -36,11 +36,21 @@ verify_jwt = true
 verify_jwt = true
 
 # sync-splitwise checks a captain/admin JWT itself, and also accepts the
-# x-splitwise-cron secret for pg_cron. The platform JWT check stays off so
-# the cron call is not rejected before the handler runs. The handler rejects
-# everyone else. Splitwise secrets never go in the Vite client.
+# x-splitwise-cron secret for pg_cron. That secret is generated in Vault by
+# 20261113043000_splitwise_twice_daily_sync.sql. The platform JWT check stays
+# off so the cron call is not rejected before the handler runs. The handler
+# rejects everyone else. Splitwise secrets never go in the Vite client.
 
 [functions.sync-splitwise]
+verify_jwt = false
+
+# sync-feedback-sheet appends feedback rows to the club Google Sheet.
+# verify_jwt is off so the insert trigger and the hourly retry can call it
+# with the Vault secret. The handler also accepts the service role or an
+# admin JWT for a backfill. A sheet failure does not affect the feedback
+# insert. The browser does not call this function.
+
+[functions.sync-feedback-sheet]
 verify_jwt = false
 
 # splitwise-ensure-member adds the signed-in member to the Cheetahs group.
