@@ -380,30 +380,6 @@ export function StreamDialog({
             <span>{live.label}</span>
           </p>
         ) : null}
-        {!loading && canEndStream && !confirmingEnd ? (
-          <button type="button" className="button button-danger" onClick={showEndConfirm} disabled={pending}>
-            End stream
-          </button>
-        ) : null}
-        {!loading && canEndStream && confirmingEnd ? (
-          <div className="stream-end-confirm" role="group" aria-labelledby={endConfirmId}>
-            <p id={endConfirmId}>End the YouTube broadcast for {title}? This can't be undone.</p>
-            <div className="stream-field-actions">
-              <button
-                type="button"
-                className="button button-quiet"
-                onClick={hideEndConfirm}
-                disabled={pending}
-                ref={cancelEndRef}
-              >
-                Cancel
-              </button>
-              <button type="button" className="button button-danger" onClick={onEnd} disabled={pending}>
-                {pending ? 'Queuing…' : 'End stream'}
-              </button>
-            </div>
-          </div>
-        ) : null}
         {requestError ? (
           <p className="banner banner-error" role="alert">
             {requestError}
@@ -532,6 +508,30 @@ export function StreamDialog({
                 onSave={(value) => commitField(field.key, value)}
               />
             ))}
+          </div>
+        ) : null}
+        {!loading && canEndStream && !confirmingEnd ? (
+          <button type="button" className="button button-danger" onClick={showEndConfirm} disabled={pending}>
+            End stream
+          </button>
+        ) : null}
+        {!loading && canEndStream && confirmingEnd ? (
+          <div className="stream-end-confirm" role="group" aria-labelledby={endConfirmId}>
+            <p id={endConfirmId}>End the YouTube broadcast for {title}? This can't be undone.</p>
+            <div className="stream-field-actions">
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={hideEndConfirm}
+                disabled={pending}
+                ref={cancelEndRef}
+              >
+                Cancel
+              </button>
+              <button type="button" className="button button-danger" onClick={onEnd} disabled={pending}>
+                {pending ? 'Queuing…' : 'End stream'}
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
