@@ -1507,6 +1507,171 @@ a.info-card:focus-visible {
   border-color: var(--color-primary);
 }
 
+.record-strip-wrap {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.record-strip {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.record-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  min-width: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-top: 3px solid var(--color-accent);
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--color-text) 5%, transparent);
+}
+
+.record-row.is-selected {
+  border-color: var(--color-primary);
+  border-top-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface-raised));
+}
+
+.record-select {
+  display: flex;
+  flex: 1 1 12rem;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+div.record-select {
+  cursor: default;
+}
+
+.record-figures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.record-name {
+  color: var(--color-primary);
+  font-family: var(--display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.record-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  min-width: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.record-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.record-dot {
+  color: color-mix(in srgb, var(--color-primary) 45%, var(--color-text));
+  font-weight: 700;
+}
+
+.record-stat-wins {
+  color: var(--chip-win-bg);
+}
+
+.record-stat-losses {
+  color: var(--chip-loss-bg);
+}
+
+.record-stat-ties {
+  color: var(--chip-result-neutral-bg);
+}
+
+.record-stat-toPlay {
+  color: var(--color-text);
+}
+
+.form-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 0 1 auto;
+}
+
+.form-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  font-family: var(--body);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.form-badge-win {
+  background: var(--chip-win-bg);
+  color: var(--chip-win-fg);
+}
+
+.form-badge-loss {
+  background: var(--chip-loss-bg);
+  color: var(--chip-loss-fg);
+}
+
+.form-badge-neutral {
+  background: var(--chip-result-neutral-bg);
+  color: var(--chip-result-neutral-fg);
+}
+
+.form-badge-nr {
+  font-size: 0.62rem;
+  letter-spacing: -0.02em;
+}
+
+.record-select:hover .record-name,
+.record-select:focus-visible .record-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .fixture-date {
   margin: 0;
   color: var(--color-primary);

@@ -4,6 +4,7 @@ import { useAuth } from '../auth/useAuth.ts'
 import { FixtureForm } from '../components/FixtureForm.tsx'
 import { GameCard } from '../components/GameCard.tsx'
 import { MonthCalendar } from '../components/MonthCalendar.tsx'
+import { TeamRecordStrip } from '../components/TeamRecordStrip.tsx'
 import { useStreams } from '../components/streams-context.ts'
 import { RoleNote } from '../components/RoleNote.tsx'
 import {
@@ -20,6 +21,10 @@ import { canManageClub, type ScheduleEvent, type Team } from '../lib/types.ts'
 
 const SIDES = ['all', 'upcoming', 'completed', 'alpha', 'beta', 'gamma', 'practice', 'mine'] as const
 type SideFilter = (typeof SIDES)[number]
+
+function parseView(value: string | null): 'list' | 'calendar' {
+  return value === 'list' ? 'list' : 'calendar'
+}
 
 function parseSide(value: string | null): SideFilter {
   if (
@@ -62,7 +67,7 @@ export function SchedulesPage() {
   const location = useLocation()
   const [params, setParams] = useSearchParams()
   const side = parseSide(params.get('side'))
-  const view = params.get('view') === 'calendar' ? 'calendar' : 'list'
+  const view = parseView(params.get('view'))
   const pinnedId = location.hash.startsWith('#fixture-') ? location.hash.slice('#fixture-'.length) : null
   const [teams, setTeams] = useState<Team[]>([])
   const [myTeamIds, setMyTeamIds] = useState<string[]>([])
@@ -144,8 +149,8 @@ export function SchedulesPage() {
 
   function selectView(next: 'list' | 'calendar') {
     const nextParams = new URLSearchParams(params)
-    if (next === 'list') nextParams.delete('view')
-    else nextParams.set('view', 'calendar')
+    if (next === 'calendar') nextParams.delete('view')
+    else nextParams.set('view', 'list')
     setParams(nextParams, { replace: true })
   }
 
@@ -199,9 +204,10 @@ export function SchedulesPage() {
         <p className="kicker">Winter 2026-27</p>
         <h1>Schedules</h1>
         <p className="lede">
-          Cheetahs Alpha, Beta, and Gamma league games from the winter sheet. Wednesday
-          practice is on its own filter. Upcoming is the default: league games that are
-          scheduled or already underway, and not completed. Completed lists league games
+          Cheetahs Alpha, Beta, and Gamma league games from the winter sheet. The page
+          opens on the calendar. List is one tap away, and Upcoming stays the list
+          default: league games that are scheduled or already underway, and not completed.
+          Wednesday practice is on its own filter. Completed lists league games
           with a posted result or a completed status. Times are Pacific
           (America/Los_Angeles). The club week on the home page is Monday through Sunday.
           Availability stays on the club sheet. Calendar is the month view of those league
@@ -228,6 +234,15 @@ export function SchedulesPage() {
         <button type="button" className="button button-gold" onClick={() => setComposing(true)}>
           Add an event
         </button>
+      ) : null}
+      {rows && teams.length > 0 ? (
+        <TeamRecordStrip
+          teams={teams}
+          events={rows}
+          side={side}
+          myTeamIds={myTeamIds}
+          onSelectTeam={(slug) => selectSide(side === slug ? 'upcoming' : slug)}
+        />
       ) : null}
       <div className="filter-bar" role="group" aria-label="Schedule view">
         <button type="button" className="filter-chip" aria-pressed={view === 'list'} onClick={() => selectView('list')}>
