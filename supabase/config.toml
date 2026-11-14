@@ -73,6 +73,14 @@ verify_jwt = false
 [functions.sync-feedback-sheet]
 verify_jwt = false
 
+# sync-finance-sheet reads the winter dues Google Sheet. verify_jwt is off
+# so pg_cron can call it with the Vault secret in x-finance-sync. The handler
+# also accepts an admin JWT for Sync now. A player JWT is rejected. The
+# function never writes to the sheet.
+
+[functions.sync-finance-sheet]
+verify_jwt = false
+
 # splitwise-ensure-member adds the signed-in member to the Cheetahs group.
 # The gateway requires a user JWT. The handler calls getUser again, then
 # reads profiles.role for the admin backfill. Do not deploy with --no-verify-jwt.

@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useParams } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { AssessDuesForm } from '../components/AssessDuesForm.tsx'
 import { ExpenseForm } from '../components/ExpenseForm.tsx'
 import { RoleNote } from '../components/RoleNote.tsx'
 import { SplitwiseBalances, SplitwiseMine, SplitwiseStaffSummary } from '../components/SplitwisePanels.tsx'
+import { SheetClubDues } from '../components/SheetClubDues.tsx'
+import { SheetDuesSection } from '../components/SheetDuesSection.tsx'
 import { VenmoPayLink } from '../components/VenmoPayLink.tsx'
 import {
   confirmClaim,
@@ -33,6 +36,7 @@ import {
   type SplitwiseAddSummary,
   type SplitwiseEnsureNotice,
 } from '../lib/splitwiseMembership.ts'
+import { memberIdFromParam } from '../lib/sheetLedger.ts'
 import { duesVenmoNote, venmoPayHandle } from '../lib/venmo.ts'
 import {
   canManageClub,
@@ -45,7 +49,7 @@ import {
   type Team,
 } from '../lib/types.ts'
 
-type DuesView = 'mine' | 'expenses' | 'assess' | 'balances'
+type DuesView = 'mine' | 'sheet' | 'expenses' | 'assess' | 'balances'
 
 function teamLabel(teams: Team[], teamId: string | null): string {
   if (!teamId) return 'Club-wide'
@@ -70,12 +74,14 @@ export function DuesPage() {
   const { session, profile, accountProfile, profileReady, profileError } = useAuth()
   const staff = canManageClub(profile?.role)
   const isAdmin = accountProfile?.role === 'admin'
+  const sheetAdmin = profile?.role === 'admin'
   const userId = session?.user.id ?? null
+  const memberParam = useParams().memberId
   const [view, setView] = useState<DuesView>(() => {
     const id = decodeURIComponent(window.location.hash.replace(/^#/, ''))
     if (id.startsWith('due-')) return 'mine'
     if (id.startsWith('expense-')) return 'expenses'
-    return 'balances'
+    return 'mine'
   })
   const [desk, setDesk] = useState<DuesDesk | null>(null)
   const [snapshot, setSnapshot] = useState<SplitwiseSnapshot>(emptySnapshot)
@@ -235,6 +241,11 @@ export function DuesPage() {
     }
   }
 
+  const requestedId = memberIdFromParam(memberParam)
+  const invalidMemberLink = Boolean(memberParam) && !requestedId
+  const viewingOther = Boolean(staff && requestedId && requestedId !== userId)
+  const sheetMemberId = viewingOther && requestedId ? requestedId : userId
+  const wrongLink = Boolean(requestedId && userId && requestedId !== userId && !staff)
   const payments = desk?.payments ?? []
   const mine = sortMine((desk?.assessments ?? []).filter((row) => row.member_id === userId))
   const myOpen = mine.reduce((sum, row) => {
@@ -255,16 +266,12 @@ export function DuesPage() {
         <h1>Dues</h1>
         <p className="lede">
           {staff
-            ? venmoUsername
-              ? 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Pay buttons open Venmo with the amount and a note filled in. Log new costs in Splitwise. The local expenses and charges tabs do not.'
-              : 'Splitwise is the ledger. Refresh copies the Cheetahs group into this page. Log new costs in Splitwise. The local expenses and charges tabs do not.'
-            : venmoUsername
-              ? 'What you owe is the balance copied from the club Splitwise group. Pay with Venmo, then a captain records it in Splitwise. The app does not take the payment.'
-              : 'What you owe is the balance copied from the club Splitwise group. A captain records payments in Splitwise. The app does not take the payment.'}
+            ? 'The winter club sheet is the ledger on My dues. It lists membership, umpiring, and each game charge, and the balance due matches the sheet. Splitwise still refreshes on its own tab. The local expenses and charges tabs are a scratch pad.'
+            : 'Your balance comes from the club winter dues sheet. When you owe, pay by Zelle with the memo on this page. Splitwise is a separate copy and does not change this balance.'}
         </p>
       </header>
       <RoleNote ready={profileReady} restricted={!staff}>
-        Captains and admins refresh Splitwise and can see every balance. You see your own Splitwise balance, and any in-app charge that was assessed to you.
+        Captains and admins can open another player&apos;s dues link and can see sheet names that are not linked yet. You see your own sheet balance.
       </RoleNote>
       {profileError ? (
         <p className="banner banner-error" role="alert">
@@ -302,23 +309,13 @@ export function DuesPage() {
           </p>
         </section>
       ) : null}
-      {staff && profileReady ? (
-        <SplitwiseStaffSummary
-          snapshot={snapshot}
-          refreshing={refreshing}
-          refreshError={refreshError}
-          onRefresh={() => void refreshSplitwise(true)}
-          isAdmin={isAdmin}
-          addingMembers={addingMembers}
-          addError={addError}
-          addSummary={addSummary}
-          onAddAll={() => void addAllMembers()}
-        />
-      ) : null}
       {staff ? (
         <div className="filter-bar" role="group" aria-label="Dues sections">
           <button type="button" className="filter-chip" aria-pressed={activeView === 'mine'} onClick={() => setView('mine')}>
             My dues
+          </button>
+          <button type="button" className="filter-chip" aria-pressed={activeView === 'sheet'} onClick={() => setView('sheet')}>
+            Club sheet
           </button>
           <button
             type="button"
@@ -342,15 +339,34 @@ export function DuesPage() {
             aria-pressed={activeView === 'balances'}
             onClick={() => setView('balances')}
           >
-            Balances
+            Splitwise
           </button>
         </div>
       ) : null}
       {!profileReady || (desk === null && !error) ? <p className="empty-copy">Loading dues…</p> : null}
-      {profileReady && activeView === 'mine' ? (
-        <SplitwiseMine userId={userId} snapshot={snapshot} loading={!snapshotReady} error={snapshotError} />
+      {profileReady && userId && sheetMemberId && activeView === 'mine' ? (
+        <SheetDuesSection
+          key={sheetMemberId}
+          memberId={sheetMemberId}
+          staff={staff}
+          isAdmin={sheetAdmin}
+          selfName={profile?.full_name ?? null}
+          viewingSelf={!viewingOther}
+          wrongLink={wrongLink}
+          invalidLink={invalidMemberLink}
+        />
       ) : null}
-      {desk && activeView === 'mine' ? (
+      {profileReady && activeView === 'mine' ? (
+        <SplitwiseMine
+          userId={sheetMemberId}
+          snapshot={snapshot}
+          loading={!snapshotReady}
+          error={snapshotError}
+          canPay={!viewingOther}
+          viewerIsSubject={!viewingOther}
+        />
+      ) : null}
+      {desk && activeView === 'mine' && !viewingOther ? (
         <MyDues
           rows={mine}
           payments={payments}
@@ -440,6 +456,20 @@ export function DuesPage() {
           memberships={desk.memberships}
           expenses={desk.expenses}
           onSaved={refresh}
+        />
+      ) : null}
+      {staff && profileReady && activeView === 'sheet' ? <SheetClubDues isAdmin={sheetAdmin} /> : null}
+      {staff && profileReady && activeView === 'balances' ? (
+        <SplitwiseStaffSummary
+          snapshot={snapshot}
+          refreshing={refreshing}
+          refreshError={refreshError}
+          onRefresh={() => void refreshSplitwise(true)}
+          isAdmin={isAdmin}
+          addingMembers={addingMembers}
+          addError={addError}
+          addSummary={addSummary}
+          onAddAll={() => void addAllMembers()}
         />
       ) : null}
       {staff && activeView === 'balances' ? <SplitwiseBalances snapshot={snapshot} /> : null}

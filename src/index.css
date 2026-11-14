@@ -2198,6 +2198,58 @@ div.record-select {
   font-weight: 700;
 }
 
+.zelle-box {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 16px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-accent);
+  border-radius: 14px;
+}
+
+.zelle-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.zelle-line p {
+  flex: 1 1 100%;
+  margin: 0;
+  min-width: 0;
+}
+
+.zelle-line code {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .zelle-line p {
+    flex-basis: 18rem;
+  }
+}
+
+.dues-lines {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.dues-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
 .pick-list {
   list-style: none;
   margin: 8px 0 0;

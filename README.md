@@ -2,12 +2,12 @@
 
 Clubhouse for Cheetahs Cricket Club. Members sign in with Google or with email and password, read announcements, activities, the winter schedule, and polls, check dues, and send feedback on the app. The crest in `public/crest.png` is the brand mark.
 
-Feedback is stored in Supabase. The browser does not call Google Sheets. An Edge Function appends each new row to the club sheet. See [docs/feedback-sync.md](docs/feedback-sync.md).
+Feedback is stored in Supabase. The browser does not call Google Sheets. An Edge Function appends each new row to the club sheet. See [docs/feedback-sync.md](docs/feedback-sync.md). Winter dues are copied from a second sheet the same way. See [docs/finance-sheet.md](docs/finance-sheet.md).
 
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/access`, `/admin`, `/admin/members`)
+- React Router (`/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/dues/:memberId`, `/feedback`, `/invites`, `/access`, `/admin`, `/admin/members`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -88,7 +88,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_VENMO_ENABLED` — set to `true` to show Venmo pay buttons. Unset or any other value keeps Venmo hidden. Defaults to off.
 - `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Used only when Venmo is enabled, and only until the first Splitwise refresh stores a real `VENMO_USERNAME`. The old placeholder `cheetahs` is ignored. Do not put Splitwise keys here.
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/access`, `/admin`, and `/admin/members` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/dues/:memberId`, `/feedback`, `/invites`, `/access`, `/admin`, and `/admin/members` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -98,7 +98,13 @@ Set these environment variables on the Pages project **before** the build. Vite 
 
 SQL lives in `supabase/migrations`. Files through the invite workflow are already applied on the club project. Filename order matches the remote migration history. On a brand-new database, apply that directory with the Supabase CLI (`supabase db push`). Do not re-apply a file that is already in the remote history.
 
-Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Amounts are USD cents. That in-app ledger is a scratch pad. The Cheetahs Splitwise group is the ledger of record, with Venmo pay links. Setup is in [docs/splitwise-venmo.md](docs/splitwise-venmo.md).
+Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Amounts are USD cents. That in-app ledger is a scratch pad. My dues reads the winter finance sheet. Splitwise stays on the Dues page as a second copy, with Venmo pay links. Sheet setup is in [docs/finance-sheet.md](docs/finance-sheet.md). Splitwise setup is in [docs/splitwise-venmo.md](docs/splitwise-venmo.md).
+
+A player's own page is `https://cheetahs-club.pages.dev/dues`. A link for one member is `https://cheetahs-club.pages.dev/dues/<profile-uuid>`. Both require sign-in. A player only sees their own rows. Captains and admins can open another member's id. Apply `supabase/migrations/20261114211000_sheet_dues.sql` before deploying:
+
+```bash
+supabase functions deploy sync-finance-sheet --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+```
 
 Apply `supabase/migrations/20261106180000_splitwise_snapshot.sql` on project `lutcbvzunjcosncvdyke` (`supabase db push`, or paste the file into the SQL editor). Do not put `SPLITWISE_API_KEY`, an OAuth secret, or the service role key in a `VITE_` variable or in git.
 
