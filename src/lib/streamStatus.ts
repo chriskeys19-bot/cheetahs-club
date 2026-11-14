@@ -21,12 +21,12 @@ export const STREAM_ACTIONS = ['check', 'create', 'add_scorecard', 'end'] as con
 export const STREAM_CHECK_INTERVAL_MS = 10 * 60 * 1000
 
 /** Matches private.expire_stale_stream_jobs and the Retry supersede in request_stream_job. */
-export const STREAM_STEP_TIMEOUT_MS = 30 * 60 * 1000
+export const STREAM_STEP_TIMEOUT_MS = 7 * 60 * 1000
 
 /** Wait this long for the job row before treating an in-progress stream as abandoned. */
 export const STREAM_JOB_APPEAR_GRACE_MS = 15 * 1000
 
-export const STREAM_STEP_TIMEOUT_LABEL = 'This stream step timed out after 30 minutes. Tap Retry.'
+export const STREAM_STEP_TIMEOUT_LABEL = 'This stream step timed out after 7 minutes. Tap Retry.'
 
 export const STREAM_STEP_STOPPED_LABEL = 'This stream step stopped without finishing. Tap Retry.'
 

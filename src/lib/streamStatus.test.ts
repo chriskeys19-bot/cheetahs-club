@@ -250,7 +250,7 @@ test('an in-progress stream with no job stops spinning after a short wait', () =
   assert.equal(retryAction(stream({ status: 'checking' }), null), 'check')
 })
 
-test('a step that has been running for 30 minutes offers Retry', () => {
+test('a step that has been running for 7 minutes offers Retry', () => {
   const now = Date.parse('2026-11-14T17:30:00Z')
   const live = liveStreamMessage(
     stream({ status: 'creating', updated_at: new Date(now - 60_000).toISOString() }),
