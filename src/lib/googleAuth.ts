@@ -1,20 +1,29 @@
 import { supabase, supabaseAnonKey, supabaseUrl } from './supabase.ts'
 
 const INVITE_KEY = 'cheetahs.oauth.invite'
+const SIGNUP_KEY = 'cheetahs.oauth.signup'
 const NOTICE_KEY = 'cheetahs.oauth.notice'
 const INVITE_MAX_AGE_MS = 30 * 60 * 1000
 const TOKEN_PATTERN = /^[0-9a-f]{64}$/
+const TEAM_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export const AUTH_CALLBACK_PATH = '/auth/callback'
 
 export type GoogleFinishStatus =
   | 'member'
   | 'joined'
+  | 'pending'
   | 'invite_required'
   | 'email_mismatch'
   | 'invite_unusable'
   | 'no_profile'
   | 'error'
+
+export type StoredSignup = {
+  teamIds: string[]
+  note: string
+  fullName: string
+}
 
 export type GoogleFinishResult = {
   status: GoogleFinishStatus
@@ -64,6 +73,42 @@ export function readInviteToken(): string | null {
 export function clearInviteToken(): void {
   sessionStorage.removeItem(INVITE_KEY)
   localStorage.removeItem(INVITE_KEY)
+}
+
+export function rememberSignup(value: StoredSignup): void {
+  const teamIds = value.teamIds.map((id) => id.trim().toLowerCase()).filter((id) => TEAM_ID_PATTERN.test(id))
+  const payload = JSON.stringify({
+    teamIds,
+    note: value.note.slice(0, 500),
+    fullName: value.fullName.slice(0, 80),
+    at: Date.now(),
+  })
+  sessionStorage.setItem(SIGNUP_KEY, payload)
+  localStorage.setItem(SIGNUP_KEY, payload)
+}
+
+export function readSignup(): StoredSignup | null {
+  const raw = sessionStorage.getItem(SIGNUP_KEY) ?? localStorage.getItem(SIGNUP_KEY)
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as { teamIds?: unknown; note?: unknown; fullName?: unknown; at?: unknown }
+    if (typeof parsed.at !== 'number' || Date.now() - parsed.at > INVITE_MAX_AGE_MS) return null
+    if (!Array.isArray(parsed.teamIds)) return null
+    const teamIds = parsed.teamIds.filter((id): id is string => typeof id === 'string' && TEAM_ID_PATTERN.test(id))
+    if (teamIds.length < 1) return null
+    return {
+      teamIds,
+      note: typeof parsed.note === 'string' ? parsed.note : '',
+      fullName: typeof parsed.fullName === 'string' ? parsed.fullName : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+export function clearSignup(): void {
+  sessionStorage.removeItem(SIGNUP_KEY)
+  localStorage.removeItem(SIGNUP_KEY)
 }
 
 export function writeOauthNotice(result: GoogleFinishResult): void {
@@ -119,6 +164,7 @@ function parseFinish(payload: unknown, ok: boolean): GoogleFinishResult {
   if (
     row.status === 'member' ||
     row.status === 'joined' ||
+    row.status === 'pending' ||
     row.status === 'invite_required' ||
     row.status === 'email_mismatch' ||
     row.status === 'invite_unusable' ||
@@ -136,6 +182,7 @@ export async function finishGoogleSignIn(token: string | null): Promise<GoogleFi
   const { data } = await supabase.auth.getSession()
   const accessToken = data.session?.access_token
   if (!accessToken) return { status: 'error', message: 'Google sign-in did not start a session.' }
+  const signup = readSignup()
 
   let response: Response
   try {
@@ -146,7 +193,12 @@ export async function finishGoogleSignIn(token: string | null): Promise<GoogleFi
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify(token ? { token } : {}),
+      body: JSON.stringify({
+        ...(token ? { token } : {}),
+        ...(signup
+          ? { signup: { team_ids: signup.teamIds, note: signup.note, full_name: signup.fullName } }
+          : {}),
+      }),
     })
   } catch {
     return { status: 'error', message: 'Google sign-in could not be checked. Try again.' }

@@ -19,6 +19,8 @@ const captain: AuthValue = {
   signIn: async () => null,
   signOut: async () => undefined,
   googleGateReady: true,
+  markGoogleReady: () => undefined,
+  reloadProfile: async () => undefined,
 }
 
 function event(patch: Partial<ScheduleEvent> & Pick<ScheduleEvent, 'id' | 'opponent' | 'result' | 'match_status'>): ScheduleEvent {

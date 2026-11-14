@@ -1,7 +1,9 @@
-import { useState } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
+import { onAccessChanged, pendingAccessCount } from '../lib/access.ts'
 import { canManageClub, displayName, roleLabel } from '../lib/types.ts'
+import { CopySignupLink } from './CopySignupLink.tsx'
 import { Crest } from './Crest.tsx'
 import { InstagramLink } from './InstagramLink.tsx'
 import { RoleBadge } from './RoleBadge.tsx'
@@ -11,8 +13,29 @@ import { StreamsProvider } from './StreamsProvider.tsx'
 export function Shell() {
   const { session, profile, accountProfile, viewRole, setViewRole, canSwitchRole, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const staff = canManageClub(profile?.role)
+  const [accessCount, setAccessCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    if (!staff) return
+    let cancelled = false
+    const load = () => {
+      void pendingAccessCount().then((count) => {
+        if (!cancelled) setAccessCount(count)
+      })
+    }
+    load()
+    const unsubscribe = onAccessChanged(() => {
+      if (!cancelled) load()
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
+  }, [staff, location.pathname])
+
   const email = session?.user.email ?? null
   const name = displayName(profile, email)
 
@@ -67,7 +90,14 @@ export function Shell() {
           <NavLink to="/polls">Polls</NavLink>
           <NavLink to="/dues">Dues</NavLink>
           <NavLink to="/feedback">Feedback</NavLink>
-          {canManageClub(profile?.role) ? <NavLink to="/invites">Invites</NavLink> : null}
+          {staff ? <NavLink to="/invites">Invites</NavLink> : null}
+          {staff ? (
+            <NavLink to="/access" aria-label={accessCount > 0 ? `Access requests, ${accessCount} waiting` : 'Access requests'}>
+              Access
+              {accessCount > 0 ? <span className="nav-count">{accessCount > 99 ? '99+' : accessCount}</span> : null}
+            </NavLink>
+          ) : null}
+          {staff ? <CopySignupLink /> : null}
           <NavLink to="/admin">Admin</NavLink>
         </div>
       </nav>

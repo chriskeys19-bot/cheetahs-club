@@ -2,10 +2,14 @@ export const CLUB_ROLES = ['admin', 'captain', 'player'] as const
 
 export type ClubRole = (typeof CLUB_ROLES)[number]
 
+export type AccessStatus = 'pending' | 'active'
+
 export type Profile = {
   id: string
   full_name: string | null
   role: ClubRole
+  /** Missing means the column is not loaded yet. Pending accounts cannot see club data. */
+  access_status?: AccessStatus
 }
 
 export type Team = {

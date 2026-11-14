@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { Navigate, useLocation } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { useAuth } from '../auth/useAuth.ts'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx'
 import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
-import { clearOauthNotice, peekOauthNotice, startGoogleSignIn, type GoogleFinishResult } from '../lib/googleAuth.ts'
+import { clearOauthNotice, clearSignup, peekOauthNotice, startGoogleSignIn, type GoogleFinishResult } from '../lib/googleAuth.ts'
 
 function safeNext(value: unknown): string {
   if (typeof value !== 'string') return '/'
@@ -62,6 +62,7 @@ export function LoginPage() {
     setGoogleBusy(true)
     setError(null)
     clearOauthNotice()
+    clearSignup()
     setNoticeHidden(true)
     const message = await startGoogleSignIn(null)
     if (message) {
@@ -77,7 +78,7 @@ export function LoginPage() {
         <div>
           <p className="hero-kicker">Members</p>
           <h1>Cheetahs Cricket Club</h1>
-          <p className="hero-copy">Sign in with Google or with the email and password from your invite.</p>
+          <p className="hero-copy">Sign in with Google or with the email and password for your club account.</p>
         </div>
       </section>
       <section className="login-panel">
@@ -132,8 +133,8 @@ export function LoginPage() {
             {busy ? 'Signing in…' : 'Enter the clubhouse'}
           </button>
           <p className="fine-print">
-            Club accounts are invite-only. A captain or admin sends you a join link. Google sign-in
-            uses that same invite. There is no public sign-up.
+            New to the club? <Link to="/signup">Request access</Link>. A captain approves it before
+            you can see the clubhouse. Already invited? Open the join link they sent you.
           </p>
         </form>
       </section>
@@ -147,8 +148,8 @@ function OauthNotice({ notice, onDismiss }: { notice: GoogleFinishResult; onDism
       <div className="banner banner-note" role="status">
         <p className="banner-title">Ask your captain for an invite</p>
         <p>
-          Google signed you in, but this club does not open for a new address on its own. Ask a
-          captain for a join link, then choose Continue with Google on that page.
+          Google signed you in, but this address is not on the club roster yet. Request access
+          from the sign-up page, or open the join link a captain sent you.
         </p>
         <p className="fine-print">
           <button type="button" className="text-button" onClick={onDismiss}>

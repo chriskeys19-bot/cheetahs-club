@@ -7,6 +7,8 @@ import {
   profileNameFromMetadata,
   type InviteLookup,
 } from '../_shared/google_profile.ts'
+import { parseSignupChoice, type SignupChoice } from '../_shared/access_request.ts'
+import { notifyApprovers } from '../_shared/access_notify.ts'
 import { adminClient, json, loadInvite, readBody, tokenFrom, type InviteRow } from '../_shared/invite.ts'
 import type { SupabaseClient, User } from 'npm:@supabase/supabase-js@2.81.1'
 
@@ -15,6 +17,7 @@ type ProfileRow = {
   role: string
   full_name: string | null
   avatar_url: string | null
+  access_status: 'active' | 'pending' | null
 }
 
 function bearer(req: Request): string | null {
@@ -32,7 +35,8 @@ function isProfile(value: unknown): value is ProfileRow {
     typeof row.id === 'string' &&
     typeof row.role === 'string' &&
     (row.full_name === null || typeof row.full_name === 'string') &&
-    (row.avatar_url === null || typeof row.avatar_url === 'string')
+    (row.avatar_url === null || typeof row.avatar_url === 'string') &&
+    (row.access_status === undefined || row.access_status === null || row.access_status === 'active' || row.access_status === 'pending')
   )
 }
 
@@ -135,18 +139,41 @@ async function attachInvite(admin: SupabaseClient, userId: string, invite: Invit
 }
 
 async function admitPlayer(admin: SupabaseClient, user: User, invite: InviteRow): Promise<boolean> {
-  const saved = await admin.from('profiles').upsert(
-    {
-      id: user.id,
-      full_name: profileNameFromMetadata(user.user_metadata, user.email ?? null),
-      avatar_url: avatarFromMetadata(user.user_metadata),
-      role: 'player',
-    },
-    { onConflict: 'id' },
-  )
+  const payload = {
+    id: user.id,
+    full_name: profileNameFromMetadata(user.user_metadata, user.email ?? null),
+    avatar_url: avatarFromMetadata(user.user_metadata),
+    role: 'player',
+    access_status: 'active',
+  }
+  let saved = await admin.from('profiles').upsert(payload, { onConflict: 'id' })
+  if (saved.error && /access_status/i.test(saved.error.message)) {
+    const { access_status: _access, ...legacy } = payload
+    saved = await admin.from('profiles').upsert(legacy, { onConflict: 'id' })
+  }
   if (saved.error) {
     console.error('google profile was not saved', saved.error.code)
     return false
+  }
+  if (invite.team_id) {
+    const closed = await admin
+      .from('access_requests')
+      .update({
+        status: 'approved',
+        decided_at: new Date().toISOString(),
+        assigned_team_id: invite.team_id,
+        assigned_role: 'player',
+      })
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+    if (closed.error && !/access_requests|schema cache/i.test(closed.error.message)) {
+      console.error('pending request was not closed', closed.error.code)
+    }
+  } else {
+    const removed = await admin.from('access_requests').delete().eq('user_id', user.id).eq('status', 'pending')
+    if (removed.error && !/access_requests|schema cache/i.test(removed.error.message)) {
+      console.error('pending request was not cleared', removed.error.code)
+    }
   }
   return attachInvite(admin, user.id, invite)
 }
@@ -182,18 +209,45 @@ Deno.serve(async (req: Request) => {
 
   const profileResult = await admin
     .from('profiles')
-    .select('id, role, full_name, avatar_url')
+    .select('id, role, full_name, avatar_url, access_status')
     .eq('id', user.id)
     .maybeSingle()
-  if (profileResult.error) {
+  let profileData: unknown = profileResult.data
+  if (profileResult.error && /access_status/i.test(profileResult.error.message)) {
+    const legacy = await admin.from('profiles').select('id, role, full_name, avatar_url').eq('id', user.id).maybeSingle()
+    if (legacy.error) {
+      console.error('google profile read failed', legacy.error.code)
+      return json(req, 500, { status: 'error', message: 'Google sign-in could not be checked. Try again.' })
+    }
+    profileData = legacy.data
+  } else if (profileResult.error) {
     console.error('google profile read failed', profileResult.error.code)
     return json(req, 500, { status: 'error', message: 'Google sign-in could not be checked. Try again.' })
   }
-  const profile = isProfile(profileResult.data) ? profileResult.data : null
+  const profile = isProfile(profileData) ? profileData : null
   const acceptedInvite = profile ? await hasAcceptedInvite(admin, user.id) : false
   if (acceptedInvite === null) {
     return json(req, 500, { status: 'error', message: 'Google sign-in could not be checked. Try again.' })
   }
+
+  const signupRaw = body && typeof body === 'object' ? (body as Record<string, unknown>).signup : undefined
+  let signup: SignupChoice | null = null
+  if (signupRaw != null) {
+    const parsed = parseSignupChoice(signupRaw)
+    if (parsed.ok) signup = parsed.value
+  }
+  const pendingLookup = await admin
+    .from('access_requests')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+    .limit(1)
+  if (pendingLookup.error && !/access_requests|schema cache/i.test(pendingLookup.error.message)) {
+    console.error('access request lookup failed', pendingLookup.error.code)
+    return json(req, 500, { status: 'error', message: 'Google sign-in could not be checked. Try again.' })
+  }
+  const hasPendingRequest = !pendingLookup.error && Array.isArray(pendingLookup.data) && pendingLookup.data.length > 0
+
   const invite = tokenError
     ? { kind: 'unusable' as const, message: tokenError }
     : await lookupInvite(req, admin, token, user.email ?? null)
@@ -202,6 +256,7 @@ Deno.serve(async (req: Request) => {
     providers: user.app_metadata?.providers,
     provider: user.app_metadata?.provider,
   }
+  const accessStatus = profile?.access_status === 'active' || profile?.access_status === 'pending' ? profile.access_status : null
   const decision = decideGoogleAccess({
     googleOnly: isGoogleOnlyAccount(identityInput),
     hasEmailIdentity: hasEmailIdentity(identityInput),
@@ -212,15 +267,49 @@ Deno.serve(async (req: Request) => {
     profileRole: profile?.role ?? null,
     acceptedInvite,
     invite,
+    accessStatus,
+    hasPendingRequest,
+    signupRequested: signup !== null,
   })
 
-  if (decision.action === 'allow') {
-    if (profile) await fillEmptyProfile(admin, user, profile)
-    if (invite.kind === 'match' && invite.invite) {
+  if (decision.action === 'allow' || decision.action === 'hold') {
+    if (profile && decision.action === 'allow') await fillEmptyProfile(admin, user, profile)
+    if (decision.action === 'allow' && invite.kind === 'match' && invite.invite) {
       const attached = await attachInvite(admin, user.id, invite.invite)
       if (!attached) console.error('existing member invite attach failed', invite.invite.id)
     }
-    return json(req, 200, { status: 'member' })
+    return json(req, 200, { status: decision.action === 'hold' ? 'pending' : 'member' })
+  }
+
+  if (decision.action === 'request') {
+    if (!signup) {
+      const removed = await admin.auth.admin.deleteUser(user.id)
+      if (removed.error) console.error('google user delete failed', removed.error.message)
+      return json(req, 200, { status: 'invite_unusable', message: 'Choose at least one side, then try again.' })
+    }
+    if (signup.fullName) {
+      const named = await admin.from('profiles').update({ full_name: signup.fullName }).eq('id', user.id)
+      if (named.error) console.error('signup name was not saved', named.error.code)
+    }
+    const recorded = await admin.rpc('create_access_request', {
+      p_user_id: user.id,
+      p_note: signup.note,
+      p_team_ids: signup.teamIds,
+    })
+    const row = Array.isArray(recorded.data) ? recorded.data[0] : recorded.data
+    const requestId = row && typeof row === 'object' && typeof (row as { id?: unknown }).id === 'string' ? (row as { id: string }).id : null
+    const createdFlag = row && typeof row === 'object' && (row as { created?: unknown }).created === true
+    if (recorded.error || !requestId) {
+      console.error('google access request was not saved', recorded.error?.code ?? 'empty')
+      const removed = await admin.auth.admin.deleteUser(user.id)
+      if (removed.error) console.error('google user delete failed', removed.error.message)
+      return json(req, 200, {
+        status: 'invite_unusable',
+        message: 'The request could not be saved. Try again in a moment.',
+      })
+    }
+    if (createdFlag) await notifyApprovers(admin, requestId)
+    return json(req, 200, { status: 'pending' })
   }
 
   if (decision.action === 'reject') {

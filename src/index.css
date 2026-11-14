@@ -3195,3 +3195,58 @@ textarea.note-field {
     top: 16px;
   }
 }
+
+.nav-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.nav-copy {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 6px 8px;
+  min-height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-link);
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.choice-list {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+  border: 0;
+  padding: 0;
+}
+
+.choice-list legend {
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 4px;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-weight: 700;
+}
+
+.login-card textarea {
+  min-height: 96px;
+}

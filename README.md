@@ -7,7 +7,7 @@ Feedback is stored in Supabase. The browser does not call Google Sheets. An Edge
 ## Stack
 
 - Vite, React, TypeScript
-- React Router (`/login`, `/auth/callback`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, `/admin/members`)
+- React Router (`/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/access`, `/admin`, `/admin/members`)
 - Supabase Auth and Postgres (`@supabase/supabase-js`)
 - Static hosting on Cloudflare Pages
 
@@ -47,7 +47,9 @@ npm install
 npm run dev
 ```
 
-Accounts are invite-only. `/login` has Continue with Google and the existing email and password form. There is no public sign-up. A Google account with no invite and no existing club profile sees **Ask your captain for an invite** and is not left signed in. A join link (`/join/:token`) can use Google or a password. The Google button keeps the invite token in `localStorage` and `sessionStorage` under `cheetahs.oauth.invite` until `/auth/callback` finishes. If that token is lost, a verified Google email that matches one pending invite still joins as a player on that side. Setup for Ben is in [docs/google-sign-in.md](docs/google-sign-in.md).
+`/signup` is the public sign-up link. Anyone can open it, enter a name and email, pick one or more sides from the database, and add an optional note. That creates a pending access request. Until a captain or admin approves it, the account cannot read club data: row level security hides it, and the app shows a request-pending screen. Admins approve any side. Captains approve only a request that includes a side they captain, and only as a player. The role defaults to player. An admin can choose captain. Reject leaves the account pending. Captains and admins see **Access** in the nav, with a count of requests they can act on, and **Copy sign-up link** uses the site they are on.
+
+Join links still work. `/login` has Continue with Google and email and password. A Google account with no invite, no approved access, and no sign-up choice sees **Ask your captain for an invite** and is not left signed in. A join link (`/join/:token`) can use Google or a password and still creates an active player. The Google button keeps the invite token in `localStorage` and `sessionStorage` under `cheetahs.oauth.invite` until `/auth/callback` finishes. A public Google sign-up keeps the chosen sides under `cheetahs.oauth.signup`. If the invite token is lost, a verified Google email that matches one pending invite still joins as a player on that side. Setup for Ben is in [docs/google-sign-in.md](docs/google-sign-in.md).
 
 The app restores the session on reload and signs out from the clubhouse header. The role badge reads `public.profiles` (`admin`, `captain`, or `player`). New accounts are stored as `player`. Google name and picture are copied when they are present (`full_name` or `name`, and an https `avatar_url` or `picture`). Missing metadata does not block the profile row.
 
@@ -86,7 +88,7 @@ Set these environment variables on the Pages project **before** the build. Vite 
 - `VITE_VENMO_ENABLED` — set to `true` to show Venmo pay buttons. Unset or any other value keeps Venmo hidden. Defaults to off.
 - `VITE_VENMO_USERNAME` — optional public Venmo handle, without `@`. Used only when Venmo is enabled, and only until the first Splitwise refresh stores a real `VENMO_USERNAME`. The old placeholder `cheetahs` is ignored. Do not put Splitwise keys here.
 
-`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/auth/callback`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/admin`, and `/admin/members` survive a refresh:
+`public/_redirects` is copied into `dist` and sends every path to `index.html` with status 200 so `/login`, `/signup`, `/auth/callback`, `/join/:token`, `/reset-password`, `/announcements`, `/activities`, `/schedules`, `/polls`, `/dues`, `/feedback`, `/invites`, `/access`, `/admin`, and `/admin/members` survive a refresh:
 
 ```
 /*    /index.html   200
@@ -151,7 +153,12 @@ supabase functions deploy preview-invite --no-verify-jwt --project-ref lutcbvzun
 supabase functions deploy accept-invite --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy send-invite-email --project-ref lutcbvzunjcosncvdyke
 supabase functions deploy finish-google-signin --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy request-access --no-verify-jwt --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy notify-access-request --project-ref lutcbvzunjcosncvdyke
+supabase functions deploy send-access-decision --project-ref lutcbvzunjcosncvdyke
 ```
+
+Apply `supabase/migrations/20261114194433_access_requests.sql` on project `lutcbvzunjcosncvdyke` after those three access functions and the updated `accept-invite` and `finish-google-signin` are deployed. The migration marks every current profile active, then new accounts stay pending unless invite signup sets `app_metadata.access` to `active`. An old invite function does not set that claim, so deploy the functions before someone uses a join link against the new database. No new secrets: approver and decision mail reuse `INVITE_SMTP_USER`, `INVITE_SMTP_PASS`, `INVITE_FROM_NAME`, and `APP_ORIGIN`. If those secrets are missing, the request is still saved and the Access badge is the notice.
 
 `finish-google-signin` keeps JWT verification on. Apply `supabase/migrations/20261106041946_google_oauth_profile.sql` before relying on the avatar column. Google Cloud and Supabase URL steps are in [docs/google-sign-in.md](docs/google-sign-in.md).
 

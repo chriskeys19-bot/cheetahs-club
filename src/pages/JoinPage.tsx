@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { GoogleSignInButton } from '../components/GoogleSignInButton.tsx'
 import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
-import { startGoogleSignIn } from '../lib/googleAuth.ts'
+import { clearSignup, startGoogleSignIn } from '../lib/googleAuth.ts'
 import { acceptInvite, previewInvite, type InvitePreview } from '../lib/invites.ts'
 import { formatWhen } from '../lib/format.ts'
 
@@ -53,6 +53,7 @@ export function JoinPage() {
     if (!preview || busy || googleBusy) return
     setGoogleBusy(true)
     setError(null)
+    clearSignup()
     const message = await startGoogleSignIn(token)
     if (message) {
       setError(message)

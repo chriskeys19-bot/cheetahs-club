@@ -14,7 +14,9 @@ import { HomePage } from './pages/HomePage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
 import { AuthCallbackPage } from './pages/AuthCallbackPage.tsx'
+import { AccessPage } from './pages/AccessPage.tsx'
 import { JoinPage } from './pages/JoinPage.tsx'
+import { SignupPage } from './pages/SignupPage.tsx'
 import { LoginPage } from './pages/LoginPage.tsx'
 import { ResetPasswordPage } from './pages/ResetPasswordPage.tsx'
 import { PollsPage } from './pages/PollsPage.tsx'
@@ -67,11 +69,13 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route element={<RequireAuth />}>
             <Route element={<Shell />}>
               <Route path="/" element={<HomePage />} />
               <Route path="/invites" element={<InvitesPage />} />
+              <Route path="/access" element={<AccessPage />} />
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />

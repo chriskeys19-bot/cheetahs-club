@@ -11,6 +11,8 @@ export type InviteLookup =
 export type GoogleDecision =
   | { action: 'allow' }
   | { action: 'admit' }
+  | { action: 'hold' }
+  | { action: 'request' }
   | {
       action: 'reject'
       status: 'invite_required' | 'email_mismatch' | 'invite_unusable' | 'no_profile'
@@ -83,10 +85,14 @@ export function emailIsVerified(input: {
   return meta.email_verified === true
 }
 
-// A Google-only player is a member only after an invite is accepted, or when
-// staff have already promoted them. An email identity means the password
-// invite flow created the account. Automatic linking keeps that same user id,
-// so the Google sign-in lands on the existing profile.
+// A Google-only player is a member only after an invite is accepted, an
+// access request is approved (profiles.access_status = active), or staff
+// have already promoted them. An email identity means the password flow
+// created the account. Automatic linking keeps that same user id, so the
+// Google sign-in lands on the existing profile.
+//
+// accessStatus, hasPendingRequest, and signupRequested are optional so the
+// older invite checks stay the same when a caller does not pass them.
 export function decideGoogleAccess(input: {
   googleOnly: boolean
   hasEmailIdentity: boolean
@@ -94,7 +100,29 @@ export function decideGoogleAccess(input: {
   profileRole: string | null
   acceptedInvite: boolean
   invite: InviteLookup
+  accessStatus?: 'active' | 'pending' | null
+  hasPendingRequest?: boolean
+  signupRequested?: boolean
 }): GoogleDecision {
+  if (input.accessStatus === 'active') return { action: 'allow' }
+
+  const matchingInvite = input.googleOnly && input.emailVerified && input.invite.kind === 'match'
+  if (!matchingInvite) {
+    if (input.hasPendingRequest) return { action: 'hold' }
+    if (
+      input.accessStatus === 'pending' &&
+      input.signupRequested &&
+      input.googleOnly &&
+      input.emailVerified &&
+      input.invite.kind === 'none'
+    ) {
+      return { action: 'request' }
+    }
+    // A password account that is still pending must not be treated as a member
+    // just because Google linked onto it.
+    if (input.accessStatus === 'pending' && !input.googleOnly) return { action: 'hold' }
+  }
+
   const hasProfile = input.profileRole !== null
   const staff = input.profileRole === 'admin' || input.profileRole === 'captain'
   const member = hasProfile && (staff || input.hasEmailIdentity || input.acceptedInvite)

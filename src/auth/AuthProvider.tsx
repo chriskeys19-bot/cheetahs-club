@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AuthContext, type AuthValue } from './auth-context.ts'
 import {
   clearInviteToken,
@@ -10,15 +10,40 @@ import {
 import { canSwitchRole, readStoredViewRole, writeStoredViewRole } from '../lib/roleView.ts'
 import { ensureSplitwiseMembership, resetSplitwiseEnsureOnSignOut } from '../lib/splitwiseMembership.ts'
 import { clearRecoveryMarker, recoverySessionApplied, supabase } from '../lib/supabase.ts'
-import { isClubRole, type ClubRole, type Profile } from '../lib/types.ts'
-import type { Session } from '@supabase/supabase-js'
+import { isClubRole, type AccessStatus, type ClubRole, type Profile } from '../lib/types.ts'
+import type { Session, SupabaseClient } from '@supabase/supabase-js'
+
+function parseAccess(value: unknown, present: boolean): AccessStatus | undefined {
+  if (!present) return undefined
+  if (value === 'active') return 'active'
+  return 'pending'
+}
 
 function parseProfile(value: unknown): Profile | null {
   if (!value || typeof value !== 'object') return null
   const row = value as Record<string, unknown>
   if (typeof row.id !== 'string' || !isClubRole(row.role)) return null
   if (row.full_name !== null && typeof row.full_name !== 'string') return null
-  return { id: row.id, full_name: row.full_name, role: row.role }
+  return {
+    id: row.id,
+    full_name: row.full_name,
+    role: row.role,
+    access_status: parseAccess(row.access_status, 'access_status' in row),
+  }
+}
+
+async function fetchProfile(
+  client: SupabaseClient,
+  userId: string,
+): Promise<{ userId: string; profile: Profile | null; error: string | null }> {
+  const first = await client.from('profiles').select('id, full_name, role, access_status').eq('id', userId).maybeSingle()
+  if (first.error && /access_status/i.test(first.error.message)) {
+    const second = await client.from('profiles').select('id, full_name, role').eq('id', userId).maybeSingle()
+    if (second.error) return { userId, profile: null, error: second.error.message }
+    return { userId, profile: parseProfile(second.data), error: null }
+  }
+  if (first.error) return { userId, profile: null, error: first.error.message }
+  return { userId, profile: parseProfile(first.data), error: null }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -33,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [viewChoice, setViewChoice] = useState<ClubRole | null>(() => readStoredViewRole())
   const [recoveryEvent, setRecoveryEvent] = useState(false)
   const [gate, setGate] = useState<{ userId: string; ready: boolean } | null>(null)
+  const profileTicket = useRef(0)
 
   useEffect(() => {
     if (!client) return
@@ -88,8 +114,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!user || user.id !== userId || !isGoogleOnlyUser(user)) return
       const result = await finishGoogleSignIn(readInviteToken())
       if (cancelled) return
-      if (result.status === 'member' || result.status === 'joined') {
+      if (result.status === 'member' || result.status === 'joined' || result.status === 'pending') {
         clearInviteToken()
+        const ticket = ++profileTicket.current
+        const next = await fetchProfile(supabaseClient, userId)
+        if (cancelled || ticket !== profileTicket.current) return
+        setProfileState(next)
         setGate({ userId, ready: true })
         return
       }
@@ -108,21 +138,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!authReady || !client || !session) return
 
     const userId = session.user.id
+    const ticket = ++profileTicket.current
     let cancelled = false
 
-    client
-      .from('profiles')
-      .select('id, full_name, role')
-      .eq('id', userId)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          setProfileState({ userId, profile: null, error: error.message })
-        } else {
-          setProfileState({ userId, profile: parseProfile(data), error: null })
-        }
-      })
+    fetchProfile(client, userId).then((next) => {
+      if (!cancelled && ticket === profileTicket.current) setProfileState(next)
+    })
 
     return () => {
       cancelled = true
@@ -161,6 +182,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearRecoveryMarker()
   }, [])
 
+  const markGoogleReady = useCallback(() => {
+    if (!userId) return
+    setGate({ userId, ready: true })
+  }, [userId])
+
+  const reloadProfile = useCallback(async () => {
+    if (!client || !userId) return
+    const ticket = ++profileTicket.current
+    const next = await fetchProfile(client, userId)
+    if (ticket !== profileTicket.current) return
+    setProfileState(next)
+  }, [client, userId])
+
   const signOut = useCallback(async () => {
     if (!client) return
     const { error } = await client.auth.signOut()
@@ -193,6 +227,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       googleGateReady,
+      markGoogleReady,
+      reloadProfile,
     }),
     [
       session,
@@ -209,6 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       googleGateReady,
+      markGoogleReady,
+      reloadProfile,
     ],
   )
 

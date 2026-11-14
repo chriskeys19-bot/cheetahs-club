@@ -27,6 +27,26 @@ verify_jwt = true
 [functions.send-invite-email]
 verify_jwt = true
 
+# request-access is the public /signup form. The caller has no account yet.
+# The handler checks the publishable key, then creates a pending user with
+# the service role. It does not grant club access.
+
+[functions.request-access]
+verify_jwt = false
+
+# notify-access-request lets the signed-in requester retry the approver
+# email. The gateway requires their JWT. The handler only mails their own
+# pending request, and only until one send is accepted.
+
+[functions.notify-access-request]
+verify_jwt = true
+
+# send-access-decision emails the requester after a captain or admin has
+# already approved or rejected. The gateway requires that staff member's JWT.
+
+[functions.send-access-decision]
+verify_jwt = true
+
 # admin-reset-password is only for a signed-in admin.
 # The gateway requires a user JWT. The function then reads profiles.role
 # for that user. The View-as switcher is not sent and is not trusted.
