@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { parseVideoUrl } from '../lib/games.ts'
 import {
   STREAM_STATUSES,
+  defaultStreamKeyName,
   parseHttpsUrl,
   parseStreamScorecardUrl,
   preferredOverlayUrl,
@@ -20,6 +21,7 @@ export function StreamDialog({
   when,
   stream,
   keys,
+  occupiedKeyNames = [],
   live,
   loading,
   canEditText,
@@ -45,6 +47,7 @@ export function StreamDialog({
   when: string
   stream: GameStream | null
   keys: StreamKey[]
+  occupiedKeyNames?: string[]
   live: StreamLive
   loading: boolean
   canEditText: boolean
@@ -59,7 +62,7 @@ export function StreamDialog({
   onClose: () => void
   onCreate: (streamKeyName: string) => void
   onScorecard: (url: string) => void
-  onRetry: () => void
+  onRetry: (streamKeyName?: string) => void
   onCheckAgain: () => void
   onPaste: (youtubeUrl: string) => void
   onSave: (field: StreamTextField, value: string) => void
@@ -74,7 +77,11 @@ export function StreamDialog({
   const cancelEndRef = useRef<HTMLButtonElement>(null)
   const confirmingRef = useRef(false)
   const [pickedKey, setPickedKey] = useState<string | null>(null)
-  const keyName = pickedKey && keys.some((key) => key.name === pickedKey) ? pickedKey : (keys[0]?.name ?? '')
+  const freeKey = defaultStreamKeyName(keys, occupiedKeyNames, stream?.stream_key_name)
+  const keyName =
+    pickedKey && keys.some((key) => key.name === pickedKey) && !occupiedKeyNames.includes(pickedKey)
+      ? pickedKey
+      : freeKey
   const [scorecard, setScorecard] = useState('')
   const [pasting, setPasting] = useState(pasteOpen)
   const [youtubeDraft, setYoutubeDraft] = useState('')
@@ -219,6 +226,8 @@ export function StreamDialog({
   const showSetup = !loading && (live.phase === 'create' || live.phase === 'check_failed')
   const showScorecard = !loading && live.phase === 'scorecard'
   const showRetry = !loading && (live.phase === 'failed' || live.phase === 'check_failed')
+  const retryNeedsKey =
+    !loading && live.phase === 'failed' && !stream?.youtube_url && !stream?.youtube_video_id
   const overlayHref = preferredOverlayUrl(stream)
   const fields =
     stream && live.phase !== 'create' && live.phase !== 'checking' && live.phase !== 'check_failed'
@@ -391,9 +400,25 @@ export function StreamDialog({
           </p>
         ) : null}
         {showRetry ? (
-          <button type="button" className="button button-navy" onClick={onRetry} disabled={pending}>
-            {pending ? 'Queuing…' : 'Retry'}
-          </button>
+          <div className="form-grid">
+            {retryNeedsKey ? (
+              <StreamKeyPicker
+                keys={keys}
+                occupiedKeyNames={occupiedKeyNames}
+                value={keyName}
+                disabled={pending}
+                onChange={setPickedKey}
+              />
+            ) : null}
+            <button
+              type="button"
+              className="button button-navy"
+              onClick={() => onRetry(retryNeedsKey ? keyName : undefined)}
+              disabled={pending || (retryNeedsKey && !keyName)}
+            >
+              {pending ? 'Queuing…' : 'Retry'}
+            </button>
+          </div>
         ) : null}
         {showSetup ? (
           <div className="form-grid">
@@ -405,19 +430,15 @@ export function StreamDialog({
                 submitCreate()
               }}
             >
-              <label>
-                Stream key
-                <select value={keyName} onChange={(event) => setPickedKey(event.target.value)} disabled={pending}>
-                  {keys.length === 0 ? <option value="">No keys yet</option> : null}
-                  {keys.map((key) => (
-                    <option key={key.id} value={key.name}>
-                      {key.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <StreamKeyPicker
+                keys={keys}
+                occupiedKeyNames={occupiedKeyNames}
+                value={keyName}
+                disabled={pending}
+                onChange={setPickedKey}
+              />
               <p className="fine-print">The list shows the key name only. The key itself stays on the device.</p>
-              <button type="submit" className="button button-gold" disabled={pending || keys.length === 0}>
+              <button type="submit" className="button button-gold" disabled={pending || !keyName}>
                 {pending ? 'Queuing…' : 'Create stream'}
               </button>
             </form>
@@ -502,6 +523,7 @@ export function StreamDialog({
                 href={field.href}
                 canEdit={field.key === 'status' ? canEditStatus : canEditText}
                 keys={keys}
+                occupiedKeyNames={occupiedKeyNames}
                 copied={copied === field.key}
                 disabled={pending || live.busy}
                 onCopy={() => void copy(field.key, field.value)}
@@ -536,6 +558,43 @@ export function StreamDialog({
         ) : null}
       </div>
     </div>
+  )
+}
+
+function StreamKeyPicker({
+  keys,
+  occupiedKeyNames,
+  value,
+  disabled,
+  onChange,
+}: {
+  keys: StreamKey[]
+  occupiedKeyNames: string[]
+  value: string
+  disabled: boolean
+  onChange: (name: string) => void
+}) {
+  return (
+    <>
+      <label>
+        Stream key
+        <select value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+          {keys.length === 0 ? <option value="">No keys yet</option> : null}
+          {keys.length > 0 && !value ? <option value="">No free key</option> : null}
+          {keys.map((key) => {
+            const inUse = occupiedKeyNames.includes(key.name)
+            return (
+              <option key={key.id} value={key.name} disabled={inUse}>
+                {inUse ? `${key.name} (in use)` : key.name}
+              </option>
+            )
+          })}
+        </select>
+      </label>
+      {occupiedKeyNames.length > 0 ? (
+        <p className="fine-print">A key marked in use is already on another live or scheduled game.</p>
+      ) : null}
+    </>
   )
 }
 
@@ -621,6 +680,7 @@ function StreamField({
   href,
   canEdit,
   keys,
+  occupiedKeyNames,
   copied,
   disabled,
   onCopy,
@@ -633,6 +693,7 @@ function StreamField({
   href: string | null
   canEdit: boolean
   keys: StreamKey[]
+  occupiedKeyNames: string[]
   copied: boolean
   disabled: boolean
   onCopy: () => void
@@ -666,11 +727,14 @@ function StreamField({
           {fieldKey === 'stream_key_name' ? (
             <select value={draft} onChange={(event) => setDraft(event.target.value)}>
               {keys.some((key) => key.name === draft) ? null : <option value={draft}>{draft}</option>}
-              {keys.map((key) => (
-                <option key={key.id} value={key.name}>
-                  {key.name}
-                </option>
-              ))}
+              {keys.map((key) => {
+                const inUse = occupiedKeyNames.includes(key.name) && key.name !== editValue
+                return (
+                  <option key={key.id} value={key.name} disabled={inUse}>
+                    {inUse ? `${key.name} (in use)` : key.name}
+                  </option>
+                )
+              })}
             </select>
           ) : null}
           {fieldKey === 'whatsapp_message' ? (

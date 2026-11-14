@@ -15,6 +15,7 @@ import {
 const KEYS: StreamKey[] = [
   { id: 'key-1', name: 'Yolobox Pro 1', active: true, sort_order: 1 },
   { id: 'key-2', name: 'Yolobox Pro 2', active: true, sort_order: 2 },
+  { id: 'key-3', name: 'Yolobox Pro 3', active: true, sort_order: 3 },
 ]
 
 const baseStream: GameStream = {
@@ -207,6 +208,7 @@ export function StreamPreviewPage() {
         when="Sun, Nov 8 · 9:30 AM Pacific"
         stream={model.stream}
         keys={KEYS}
+        occupiedKeyNames={['Yolobox Pro 1']}
         live={model.live}
         loading={false}
         canEditText

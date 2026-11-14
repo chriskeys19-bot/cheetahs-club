@@ -8,8 +8,10 @@ import {
   canEditStreamField,
   canManuallyEndStream,
   failedStreamChipHidden,
+  defaultStreamKeyName,
   latestJobFor,
   liveStreamMessage,
+  occupiedStreamKeyNames,
   openJobFor,
   overlayUrlFromScorecard,
   retryAction,
@@ -55,6 +57,7 @@ export function GameStreamControls({
   const openJob = stream ? openJobFor(board.jobs, stream.id) : null
   const latestJob = stream ? latestJobFor(board.jobs, stream.id) : null
   const live = liveStreamMessage(shownStream, openJob ?? latestJob)
+  const occupiedKeyNames = occupiedStreamKeyNames(board.streams, stream?.id)
   const staff = isClubRole(profile?.role) && canManageClub(profile?.role)
   const matchOver = isLeagueCompleted(event, Date.now()) || event.result !== null
   const canEditVideo = staff && matchOver
@@ -175,6 +178,7 @@ export function GameStreamControls({
           when={`${when.date} · ${when.time} Pacific`}
           stream={shownStream}
           keys={board.keys}
+          occupiedKeyNames={occupiedKeyNames}
           live={board.ready ? displayLive : { phase: 'checking', label: 'Loading the stream…', busy: true }}
           loading={!board.ready}
           canEditText={canEditText}
@@ -194,7 +198,7 @@ export function GameStreamControls({
               if (message) setEarlyOverlay(null)
             })
           }}
-          onRetry={() => {
+          onRetry={(streamKeyName) => {
             if (!stream) {
               void run('check')
               return
@@ -205,8 +209,11 @@ export function GameStreamControls({
               void run('check').finally(() => setForcingCheck(false))
               return
             }
+            const key =
+              streamKeyName?.trim() ||
+              defaultStreamKeyName(board.keys, occupiedKeyNames, stream.stream_key_name)
             void run(action, {
-              streamKeyName: stream.stream_key_name ?? board.keys[0]?.name,
+              streamKeyName: action === 'create' ? key : undefined,
               scorecardUrl: stream.scorecard_url ?? undefined,
             })
           }}
