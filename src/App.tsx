@@ -10,6 +10,7 @@ import { AdminPage } from './pages/AdminPage.tsx'
 import { AnnouncementsPage } from './pages/AnnouncementsPage.tsx'
 import { FeedbackPage } from './pages/FeedbackPage.tsx'
 import { DuesPage } from './pages/DuesPage.tsx'
+import { SheetDuesPreviewPage } from './pages/SheetDuesPreviewPage.tsx'
 import { HomePage } from './pages/HomePage.tsx'
 import { MembersPage } from './pages/MembersPage.tsx'
 import { InvitesPage } from './pages/InvitesPage.tsx'
@@ -44,13 +45,15 @@ export default function App() {
   if (
     import.meta.env.DEV &&
     (window.location.pathname.startsWith('/dev/stream-states') ||
-      window.location.pathname.startsWith('/dev/game-cards'))
+      window.location.pathname.startsWith('/dev/game-cards') ||
+      window.location.pathname.startsWith('/dev/sheet-dues'))
   ) {
     return (
       <BrowserRouter>
         <Routes>
           <Route path="/dev/stream-states" element={<StreamPreviewPage />} />
           <Route path="/dev/game-cards" element={<GameCardPreviewPage />} />
+          <Route path="/dev/sheet-dues" element={<SheetDuesPreviewPage />} />
         </Routes>
       </BrowserRouter>
     )
@@ -66,6 +69,7 @@ export default function App() {
         <Routes>
           {import.meta.env.DEV ? <Route path="/dev/stream-states" element={<StreamPreviewPage />} /> : null}
           {import.meta.env.DEV ? <Route path="/dev/game-cards" element={<GameCardPreviewPage />} /> : null}
+          {import.meta.env.DEV ? <Route path="/dev/sheet-dues" element={<SheetDuesPreviewPage />} /> : null}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
@@ -82,6 +86,7 @@ export default function App() {
               <Route path="/streams" element={<StreamsPage />} />
               <Route path="/polls" element={<PollsPage />} />
               <Route path="/dues" element={<DuesPage />} />
+              <Route path="/dues/:memberId" element={<DuesPage />} />
               <Route path="/feedback" element={<FeedbackPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/members" element={<MembersPage />} />

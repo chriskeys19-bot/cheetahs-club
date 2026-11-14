@@ -185,11 +185,15 @@ export function SplitwiseMine({
   snapshot,
   loading,
   error,
+  canPay = true,
+  viewerIsSubject = true,
 }: {
   userId: string | null
   snapshot: SplitwiseSnapshot
   loading: boolean
   error: string | null
+  canPay?: boolean
+  viewerIsSubject?: boolean
 }) {
   const username = venmoPayHandle(snapshot.meta)
   const mine = snapshot.balances.filter((row) => row.profileId === userId)
@@ -205,10 +209,10 @@ export function SplitwiseMine({
     .slice(0, 8)
 
   return (
-    <section className="panel" aria-labelledby="splitwise-mine-heading">
+    <section className="panel span-all" aria-labelledby="splitwise-mine-heading">
       <div className="section-heading">
         <p className="kicker">From Splitwise</p>
-        <h2 id="splitwise-mine-heading">My balance</h2>
+        <h2 id="splitwise-mine-heading">{viewerIsSubject ? 'My balance' : 'Splitwise balance'}</h2>
       </div>
       {!loading && !error ? <p className="fine-print">{syncedLine(snapshot.meta, false)}</p> : null}
       {loading ? <p className="empty-copy">Loading the Splitwise copy…</p> : null}
@@ -222,8 +226,9 @@ export function SplitwiseMine({
       ) : null}
       {!loading && !error && snapshot.meta?.syncedAt && mine.length === 0 ? (
         <p>
-          Your sign-in email is not on the latest Splitwise list. Signing in adds that email to the Cheetahs group
-          when Splitwise accepts it. This page reloads the balance after that succeeds.
+          {viewerIsSubject
+            ? 'Your sign-in email is not on the latest Splitwise list. Signing in adds that email to the Cheetahs group when Splitwise accepts it. This page reloads the balance after that succeeds.'
+            : 'This member is not on the latest Splitwise list.'}
         </p>
       ) : null}
       {!loading && !error && mine.length > 0 ? (
@@ -232,7 +237,7 @@ export function SplitwiseMine({
             <span>{balanceWords(net)}</span>
           </p>
           <p className="fine-print">A negative Splitwise balance is what you owe the group.</p>
-          {owes > 0 && username ? (
+          {owes > 0 && username && canPay ? (
             <>
               <p className="fine-print">{PAY_NOTE}</p>
               <div className="card-actions">
