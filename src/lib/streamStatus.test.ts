@@ -4,6 +4,8 @@ import {
   canEditStreamField,
   isPublicStreamStatus,
   liveStreamMessage,
+  defaultStreamKeyName,
+  occupiedStreamKeyNames,
   overlayUrlFromScorecard,
   parseStreamScorecardUrl,
   preferredOverlayUrl,
@@ -18,6 +20,10 @@ import {
   CHECKING_LABEL,
   NOT_FOUND_LABEL,
   STREAM_CHECK_INTERVAL_MS,
+  STREAM_JOB_APPEAR_GRACE_MS,
+  STREAM_STEP_STOPPED_LABEL,
+  STREAM_STEP_TIMEOUT_LABEL,
+  STREAM_STEP_TIMEOUT_MS,
   UPDATING_STREAM_LABEL,
   watchUrl,
   type GameStream,
@@ -38,7 +44,7 @@ const stream = (patch: Partial<GameStream>): GameStream => ({
   requested_by: 'user-1',
   checked_at: null,
   created_at: '2026-11-07T00:00:00Z',
-  updated_at: '2026-11-07T00:00:00Z',
+  updated_at: new Date().toISOString(),
   ...patch,
 })
 
@@ -195,9 +201,102 @@ test('direct scorecard links build an overlay before the worker runs', () => {
 test('scorecard setup keeps polling until the overlay job finishes', () => {
   assert.equal(streamNeedsLiveRefresh([stream({ status: 'updating_stream' })], []), true)
   assert.equal(streamNeedsLiveRefresh([stream({ status: 'setting_up_overlay' })], []), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'creating' })], []), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'checking' })], []), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'ending' })], []), true)
   assert.equal(streamNeedsLiveRefresh([stream({ status: 'ready' })], [{ action: 'add_scorecard', status: 'running' }]), true)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'ready' })], [{ action: 'create', status: 'pending' }]), true)
   assert.equal(streamNeedsLiveRefresh([stream({ status: 'ready' })], [{ action: 'add_scorecard', status: 'done' }]), false)
+  assert.equal(streamNeedsLiveRefresh([stream({ status: 'failed' })], [{ action: 'create', status: 'failed' }]), false)
   assert.equal(isPublicStreamStatus('updating_stream'), true)
+})
+
+test('a failed create job shows Retry while the stream is still creating', () => {
+  const now = Date.parse('2026-11-14T17:00:00Z')
+  const row = stream({
+    status: 'creating',
+    stream_key_name: 'Yolobox Pro 1',
+    last_error: null,
+    updated_at: '2026-11-14T16:59:30Z',
+  })
+  const live = liveStreamMessage(
+    row,
+    { status: 'failed', action: 'create', error: 'YouTube rejected the broadcast.', updated_at: '2026-11-14T16:59:40Z' },
+    now,
+  )
+  assert.equal(live.phase, 'failed')
+  assert.equal(live.busy, false)
+  assert.equal(live.label, 'Setup failed: YouTube rejected the broadcast.')
+  assert.equal(retryAction(row, { status: 'failed', action: 'create' }), 'create')
+})
+
+test('an in-progress stream with no job stops spinning after a short wait', () => {
+  const now = Date.parse('2026-11-14T17:00:00Z')
+  const fresh = liveStreamMessage(
+    stream({ status: 'creating', updated_at: new Date(now - 2_000).toISOString() }),
+    null,
+    now,
+  )
+  assert.equal(fresh.phase, 'creating')
+  assert.equal(fresh.busy, true)
+  const stuck = liveStreamMessage(
+    stream({ status: 'creating', updated_at: new Date(now - STREAM_JOB_APPEAR_GRACE_MS - 1_000).toISOString() }),
+    null,
+    now,
+  )
+  assert.equal(stuck.phase, 'failed')
+  assert.equal(stuck.busy, false)
+  assert.equal(stuck.label, `Setup failed: ${STREAM_STEP_STOPPED_LABEL}`)
+  assert.equal(retryAction(stream({ status: 'checking' }), null), 'check')
+})
+
+test('a step that has been running for 30 minutes offers Retry', () => {
+  const now = Date.parse('2026-11-14T17:30:00Z')
+  const live = liveStreamMessage(
+    stream({ status: 'creating', updated_at: new Date(now - 60_000).toISOString() }),
+    {
+      status: 'running',
+      action: 'create',
+      error: null,
+      updated_at: new Date(now - STREAM_STEP_TIMEOUT_MS).toISOString(),
+    },
+    now,
+  )
+  assert.equal(live.phase, 'failed')
+  assert.equal(live.busy, false)
+  assert.equal(live.label, `Setup failed: ${STREAM_STEP_TIMEOUT_LABEL}`)
+  assert.equal(retryAction(stream({ status: 'creating' }), { status: 'running', action: 'create' }), 'create')
+})
+
+test('a just-finished job keeps the in-progress label until the stream row catches up', () => {
+  const now = Date.parse('2026-11-14T17:00:00Z')
+  const live = liveStreamMessage(
+    stream({ status: 'creating', updated_at: new Date(now - 60_000).toISOString() }),
+    { status: 'done', action: 'create', error: null, updated_at: new Date(now - 2_000).toISOString() },
+    now,
+  )
+  assert.equal(live.phase, 'creating')
+  assert.equal(live.busy, true)
+})
+
+test('a device key in use on another live game is not the default', () => {
+  const keys = [
+    { name: 'Yolobox Pro 1', sort_order: 1 },
+    { name: 'Yolobox Pro 2', sort_order: 2 },
+    { name: 'Yolobox Pro 3', sort_order: 3 },
+  ]
+  const streams = [
+    stream({ id: 'beta', status: 'ready', stream_key_name: 'Yolobox Pro 1' }),
+    stream({ id: 'old', status: 'ended', stream_key_name: 'Yolobox Pro 2' }),
+    stream({ id: 'alpha', status: 'failed', stream_key_name: 'Yolobox Pro 3' }),
+  ]
+  assert.deepEqual(occupiedStreamKeyNames(streams, 'alpha'), ['Yolobox Pro 1'])
+  assert.equal(defaultStreamKeyName(keys, occupiedStreamKeyNames(streams), null), 'Yolobox Pro 2')
+  assert.equal(defaultStreamKeyName(keys, occupiedStreamKeyNames(streams, 'beta'), 'Yolobox Pro 1'), 'Yolobox Pro 1')
+  assert.equal(
+    defaultStreamKeyName(keys, ['Yolobox Pro 1', 'Yolobox Pro 2', 'Yolobox Pro 3'], 'Yolobox Pro 1'),
+    '',
+  )
 })
 
 test('failures keep the processor error and a retry action', () => {

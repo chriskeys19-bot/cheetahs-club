@@ -20,6 +20,16 @@ export const STREAM_ACTIONS = ['check', 'create', 'add_scorecard', 'end'] as con
 
 export const STREAM_CHECK_INTERVAL_MS = 10 * 60 * 1000
 
+/** Matches private.expire_stale_stream_jobs and the Retry supersede in request_stream_job. */
+export const STREAM_STEP_TIMEOUT_MS = 30 * 60 * 1000
+
+/** Wait this long for the job row before treating an in-progress stream as abandoned. */
+export const STREAM_JOB_APPEAR_GRACE_MS = 15 * 1000
+
+export const STREAM_STEP_TIMEOUT_LABEL = 'This stream step timed out after 30 minutes. Tap Retry.'
+
+export const STREAM_STEP_STOPPED_LABEL = 'This stream step stopped without finishing. Tap Retry.'
+
 export const CHECKING_LABEL = 'Checking CricketCrazeUSA for an existing stream…'
 
 export const NOT_FOUND_LABEL = 'No live stream found on CricketCrazeUSA. Create one?'
@@ -182,14 +192,63 @@ export function streamWithEarlyOverlay(stream: GameStream | null, earlyOverlay: 
   return { ...stream, overlay_url: earlyOverlay, overlay_short_url: null }
 }
 
+function streamStepOpen(status: StreamStatus): boolean {
+  return (
+    status === 'checking' ||
+    status === 'creating' ||
+    status === 'setting_up_overlay' ||
+    status === 'updating_stream' ||
+    status === 'ending'
+  )
+}
+
+/** Device keys held by a live or scheduled stream. Completed, ended, failed, and none are free. */
+export function streamHoldsKey(status: StreamStatus): boolean {
+  return (
+    status === 'creating' ||
+    status === 'awaiting_scorecard' ||
+    status === 'setting_up_overlay' ||
+    status === 'updating_stream' ||
+    status === 'ready' ||
+    status === 'ending'
+  )
+}
+
+export function occupiedStreamKeyNames(
+  streams: Pick<GameStream, 'id' | 'status' | 'stream_key_name'>[],
+  exceptStreamId?: string | null,
+): string[] {
+  const names: string[] = []
+  for (const row of streams) {
+    if (exceptStreamId && row.id === exceptStreamId) continue
+    const name = row.stream_key_name?.trim() ?? ''
+    if (!name || !streamHoldsKey(row.status) || names.includes(name)) continue
+    names.push(name)
+  }
+  return names
+}
+
+/** Prefer the game's current key when it is free, otherwise the first free key by sort_order. */
+export function defaultStreamKeyName(
+  keys: Pick<StreamKey, 'name' | 'sort_order'>[],
+  occupied: readonly string[],
+  preferred?: string | null,
+): string {
+  const taken = new Set(occupied)
+  const ordered = keys.slice().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+  const preferredName = preferred?.trim() ?? ''
+  if (preferredName && ordered.some((key) => key.name === preferredName) && !taken.has(preferredName)) {
+    return preferredName
+  }
+  return ordered.find((key) => !taken.has(key.name))?.name ?? ''
+}
+
 export function streamNeedsLiveRefresh(
   streams: Pick<GameStream, 'status'>[],
   jobs: Pick<StreamJob, 'action' | 'status'>[],
 ): boolean {
-  if (streams.some((row) => row.status === 'setting_up_overlay' || row.status === 'updating_stream')) return true
-  return jobs.some(
-    (job) => job.action === 'add_scorecard' && (job.status === 'pending' || job.status === 'running'),
-  )
+  if (streams.some((row) => streamStepOpen(row.status))) return true
+  return jobs.some((job) => job.status === 'pending' || job.status === 'running')
 }
 
 export function parseHttpsUrl(value: string): string | null | 'invalid' {
@@ -212,8 +271,14 @@ function overlayIsReady(
   return preferredOverlayUrl(stream) !== null
 }
 
+function timeMs(value: string | null | undefined): number | null {
+  if (!value) return null
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 export function liveStreamMessage(
-  stream: Pick<
+  stream: (Pick<
     GameStream,
     | 'status'
     | 'last_error'
@@ -223,9 +288,32 @@ export function liveStreamMessage(
     | 'overlay_url'
     | 'overlay_short_url'
     | 'checked_at'
-  > | null,
-  job: Pick<StreamJob, 'status' | 'action' | 'error'> | null,
+  > & { updated_at?: string }) | null,
+  job: (Pick<StreamJob, 'status' | 'action' | 'error'> & { updated_at?: string }) | null,
+  now = Date.now(),
 ): StreamLive {
+  const active = job?.status === 'pending' || job?.status === 'running'
+  const inProgress = stream != null && streamStepOpen(stream.status)
+  const stamp = active ? timeMs(job?.updated_at) ?? timeMs(stream?.updated_at) : timeMs(stream?.updated_at) ?? timeMs(job?.updated_at)
+  const age = stamp === null ? Number.POSITIVE_INFINITY : now - stamp
+  const timedOut = (inProgress || Boolean(active)) && age >= STREAM_STEP_TIMEOUT_MS
+  const waitingForJob = inProgress && job == null && stamp !== null && age < STREAM_JOB_APPEAR_GRACE_MS
+  const finishedAt = timeMs(job?.updated_at)
+  const jobJustFinished = job?.status === 'done' && finishedAt !== null && now - finishedAt < STREAM_JOB_APPEAR_GRACE_MS
+  const failedWhileBusy = job?.status === 'failed' && inProgress
+  const abandoned = inProgress && !active && !waitingForJob && !jobJustFinished
+  if (failedWhileBusy || timedOut || abandoned) {
+    const detail =
+      stream?.last_error?.trim() ||
+      job?.error?.trim() ||
+      (timedOut ? STREAM_STEP_TIMEOUT_LABEL : STREAM_STEP_STOPPED_LABEL)
+    const label = `Setup failed: ${detail}`
+    const noVideo = !stream?.youtube_url && !stream?.youtube_video_id
+    if (noVideo && (job?.action === 'check' || stream?.status === 'checking')) {
+      return { phase: 'check_failed', label, busy: false }
+    }
+    return { phase: 'failed', label, busy: false }
+  }
   const openCheck = job && (job.status === 'pending' || job.status === 'running') && job.action === 'check'
   if (openCheck || stream?.status === 'checking') {
     return { phase: 'checking', label: CHECKING_LABEL, busy: true }
@@ -358,7 +446,8 @@ export function retryAction(
   stream: Pick<GameStream, 'status' | 'youtube_url' | 'youtube_video_id'>,
   job: Pick<StreamJob, 'action' | 'status'> | null,
 ): StreamAction {
-  if (job && job.status === 'failed') return job.action
+  if (job && job.status !== 'done') return job.action
+  if (stream.status === 'checking') return 'check'
   if (!stream.youtube_url && !stream.youtube_video_id) return 'create'
   if (stream.status === 'ending' || stream.status === 'ended') return 'end'
   return 'add_scorecard'

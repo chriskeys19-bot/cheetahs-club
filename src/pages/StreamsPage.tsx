@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { formatFixture } from '../lib/format.ts'
 import { eventTitle, isCheetahsLeagueGame, isCompletedLeagueListing, loadSchedule } from '../lib/schedules.ts'
-import { isPublicStreamStatus, liveStreamMessage, openJobFor } from '../lib/streamStatus.ts'
+import { isPublicStreamStatus, latestJobFor, liveStreamMessage, openJobFor } from '../lib/streamStatus.ts'
 import { loadTeams } from '../lib/teams.ts'
 import type { ScheduleEvent, Team } from '../lib/types.ts'
 import { useStreams } from '../components/streams-context.ts'
@@ -77,7 +77,7 @@ export function StreamsPage() {
             if (!stream) return null
             const when = formatFixture(event.game_date, event.start_time, event.end_time)
             const side = teamName(teams, event.team_id)
-            const job = openJobFor(board.jobs, stream.id)
+            const job = openJobFor(board.jobs, stream.id) ?? latestJobFor(board.jobs, stream.id)
             const live = liveStreamMessage(stream, job)
             return (
               <li key={event.id} className="info-card">
