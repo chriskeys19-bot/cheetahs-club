@@ -98,6 +98,106 @@ test('a Google account for a different email does not consume the invite', () =>
   }
 })
 
+test('an approved player stays even without an invite row', () => {
+  assert.equal(
+    decideGoogleAccess({
+      googleOnly: true,
+      hasEmailIdentity: false,
+      emailVerified: true,
+      profileRole: 'player',
+      acceptedInvite: false,
+      invite: { kind: 'none' },
+      accessStatus: 'active',
+    }).action,
+    'allow',
+  )
+})
+
+test('a pending Google profile with no request is still removed', () => {
+  const decision = decideGoogleAccess({
+    googleOnly: true,
+    hasEmailIdentity: false,
+    emailVerified: true,
+    profileRole: 'player',
+    acceptedInvite: false,
+    invite: { kind: 'none' },
+    accessStatus: 'pending',
+    hasPendingRequest: false,
+    signupRequested: false,
+  })
+  assert.equal(decision.action, 'reject')
+  if (decision.action === 'reject') {
+    assert.equal(decision.status, 'invite_required')
+    assert.equal(decision.deleteUser, true)
+  }
+})
+
+test('a public Google signup asks for access instead of joining', () => {
+  assert.equal(
+    decideGoogleAccess({
+      googleOnly: true,
+      hasEmailIdentity: false,
+      emailVerified: true,
+      profileRole: 'player',
+      acceptedInvite: false,
+      invite: { kind: 'none' },
+      accessStatus: 'pending',
+      hasPendingRequest: false,
+      signupRequested: true,
+    }).action,
+    'request',
+  )
+})
+
+test('an existing pending request is kept and not deleted', () => {
+  assert.equal(
+    decideGoogleAccess({
+      googleOnly: true,
+      hasEmailIdentity: false,
+      emailVerified: true,
+      profileRole: 'player',
+      acceptedInvite: false,
+      invite: { kind: 'none' },
+      accessStatus: 'pending',
+      hasPendingRequest: true,
+      signupRequested: true,
+    }).action,
+    'hold',
+  )
+})
+
+test('a matching invite still admits when the signup form was also filled in', () => {
+  assert.equal(
+    decideGoogleAccess({
+      googleOnly: true,
+      hasEmailIdentity: false,
+      emailVerified: true,
+      profileRole: 'player',
+      acceptedInvite: false,
+      invite: { kind: 'match' },
+      accessStatus: 'pending',
+      signupRequested: true,
+    }).action,
+    'admit',
+  )
+})
+
+test('a pending password account linked to Google stays pending', () => {
+  assert.equal(
+    decideGoogleAccess({
+      googleOnly: false,
+      hasEmailIdentity: true,
+      emailVerified: true,
+      profileRole: 'player',
+      acceptedInvite: false,
+      invite: { kind: 'none' },
+      accessStatus: 'pending',
+      hasPendingRequest: true,
+    }).action,
+    'hold',
+  )
+})
+
 test('staff and an already accepted Google player stay members', () => {
   assert.equal(
     decideGoogleAccess({

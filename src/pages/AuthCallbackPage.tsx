@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { useAuth } from '../auth/useAuth.ts'
 import { Crest } from '../components/Crest.tsx'
 import { Splash } from '../components/Splash.tsx'
 import {
   clearInviteToken,
+  clearSignup,
   finishGoogleSignIn,
   googleRedirectError,
   readInviteToken,
@@ -20,7 +22,16 @@ type View =
 
 export function AuthCallbackPage() {
   const navigate = useNavigate()
+  const { markGoogleReady, reloadProfile } = useAuth()
+  const markReady = useRef(markGoogleReady)
+  const reload = useRef(reloadProfile)
+
   const [view, setView] = useState<View>({ kind: 'working' })
+
+  useEffect(() => {
+    markReady.current = markGoogleReady
+    reload.current = reloadProfile
+  }, [markGoogleReady, reloadProfile])
 
   useEffect(() => {
     if (!supabase) return
@@ -31,7 +42,11 @@ export function AuthCallbackPage() {
       const result = await finishGoogleSignIn(token)
       if (cancelled) return
       clearInviteToken()
-      if (result.status === 'member' || result.status === 'joined') {
+      clearSignup()
+      if (result.status === 'member' || result.status === 'joined' || result.status === 'pending') {
+        markReady.current()
+        await reload.current()
+        if (cancelled) return
         navigate('/', { replace: true })
         return
       }
@@ -88,7 +103,7 @@ export function AuthCallbackPage() {
   if (view.kind === 'working') return <Splash label="Signing you in…" />
   if (view.kind === 'invite') {
     return (
-      <CallbackShell kicker="Members" copy="Club accounts are invite-only.">
+      <CallbackShell kicker="Members" copy="A captain still has to let a new Google account in.">
         <h2>Ask your captain for an invite</h2>
         <p>
           Google signed you in, but that does not open the clubhouse. A captain or admin sends a

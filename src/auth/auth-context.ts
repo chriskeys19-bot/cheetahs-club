@@ -23,6 +23,10 @@ export type AuthValue = {
   signOut: () => Promise<void>
   /** False while a Google-only session is still being checked against an invite. */
   googleGateReady: boolean
+  /** The callback page finished the Google check and this session may enter. */
+  markGoogleReady: () => void
+  /** Read the profile again. The pending screen uses this after an approval. */
+  reloadProfile: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthValue | null>(null)

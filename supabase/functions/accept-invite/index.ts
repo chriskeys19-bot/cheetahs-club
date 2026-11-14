@@ -55,6 +55,9 @@ Deno.serve(async (req: Request) => {
     password,
     email_confirm: true,
     user_metadata: { full_name: fullName },
+    // Service role only. handle_new_user grants club access solely from this
+    // claim. A public signup cannot set it, so that account stays pending.
+    app_metadata: { access: 'active' },
   })
 
   if (created.error || !created.data.user) {
@@ -71,12 +74,21 @@ Deno.serve(async (req: Request) => {
 
   const profileWrite = await admin
     .from('profiles')
-    .update({ full_name: fullName, role: 'player' })
+    .update({ full_name: fullName, role: 'player', access_status: 'active' })
     .eq('id', user.id)
-    .select('role')
+    .select('role, access_status')
     .maybeSingle()
 
-  if (profileWrite.error || profileWrite.data?.role !== 'player') {
+  const accessColumnMissing = profileWrite.error ? /access_status/i.test(profileWrite.error.message) : false
+  const legacyWrite = accessColumnMissing
+    ? await admin.from('profiles').update({ full_name: fullName, role: 'player' }).eq('id', user.id).select('role').maybeSingle()
+    : null
+  const savedRole = legacyWrite?.data?.role ?? profileWrite.data?.role
+  const savedAccess =
+    profileWrite.data && typeof profileWrite.data === 'object'
+      ? (profileWrite.data as { access_status?: unknown }).access_status
+      : null
+  if ((profileWrite.error && !accessColumnMissing) || legacyWrite?.error || savedRole !== 'player' || (savedAccess != null && savedAccess !== 'active')) {
     console.error('player profile was not saved', invite.id)
     await admin.auth.admin.deleteUser(user.id)
     return json(req, 500, { error: 'The account could not be created. Try again in a moment.' })

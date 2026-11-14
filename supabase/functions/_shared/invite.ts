@@ -19,9 +19,16 @@ export type InviteRow = {
   role_intended: string
 }
 
+export function originAllowed(origin: string): boolean {
+  if (ALLOWED_ORIGINS.has(origin)) return true
+  // Cloudflare Pages preview hostnames, one label, so a preview can call these
+  // functions. Email links still use APP_ORIGIN, which is not a preview host.
+  return /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cheetahs-club\.pages\.dev$/.test(origin)
+}
+
 export function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? ''
-  const allow = ALLOWED_ORIGINS.has(origin) ? origin : 'https://cheetahs-club.pages.dev'
+  const allow = originAllowed(origin) ? origin : 'https://cheetahs-club.pages.dev'
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

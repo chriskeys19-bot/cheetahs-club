@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.81.1'
 import nodemailer from 'npm:nodemailer@6.10.1'
+import { originAllowed } from '../_shared/invite.ts'
 import { formatExpiry } from './format.ts'
 
 // Gmail SMTP for cheetahscc123@gmail.com.
@@ -25,7 +26,7 @@ const SEND_FAILED = 'The invite is saved, but the email did not send. Copy the j
 
 function corsHeaders(req: Request): Record<string, string> {
   const origin = req.headers.get('Origin') ?? ''
-  const allow = ALLOWED_ORIGINS.has(origin) ? origin : DEFAULT_ORIGIN
+  const allow = originAllowed(origin) ? origin : DEFAULT_ORIGIN
   return {
     'Access-Control-Allow-Origin': allow,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',

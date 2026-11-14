@@ -16,20 +16,21 @@ supabase.auth.signInWithOAuth({
 
 ## Who gets into the clubhouse
 
-The club stays invite-only.
+Join links still create an active player. `/signup` is the other way in: it stores a pending access request until a captain or admin approves it.
 
 | Situation | What happens |
 | --- | --- |
 | Email and password account, then Google with the same verified email | Same auth user and same `profiles` row. Supabase automatic linking adds the Google identity. The app does not call `linkIdentity()`. |
-| New Google user who opened a join link | Token is stored in `localStorage` and `sessionStorage` (`cheetahs.oauth.invite`, 30 minutes). `finish-google-signin` checks that token, sets the player name from Google, marks the invite accepted, and adds the invited side. |
+| New Google user who opened a join link | Token is stored in `localStorage` and `sessionStorage` (`cheetahs.oauth.invite`, 30 minutes). `finish-google-signin` checks that token, sets the player name from Google, marks the invite accepted, sets `profiles.access_status` to `active`, and adds the invited side. |
 | Token lost on the way back from Google | If that verified email has one pending invite, the same player role and side are applied. |
-| Google user with no invite and no existing account | They see **Ask your captain for an invite**. The function deletes that Google-only auth user so a later invite can still be created for the address. |
+| Google user who chose sides on `/signup` | The choice is stored as `cheetahs.oauth.signup` for 30 minutes. `finish-google-signin` keeps the account, records a pending access request, and the clubhouse stays on the pending screen. |
+| Google user with no invite, no sign-up choice, and no existing account | They see **Ask your captain for an invite**. The function deletes that Google-only auth user so a later invite or sign-up can still use the address. |
 | Google account email differs from the join link | **Use the invited Google account.** The stray Google user is deleted. The invite stays pending. |
-| Captain or admin, or a Google player whose invite was already accepted | They go straight to the clubhouse. Their role is not changed. |
+| Captain, admin, approved player, or a Google player whose invite was already accepted | They go straight to the clubhouse. Their role is not changed. |
 
-Password signup is unchanged: `accept-invite` creates the user with `email_confirm: true`, and `handle_new_user` inserts `profiles.role = 'player'`.
+Password signup on a join link is unchanged in spirit: `accept-invite` creates the user with `email_confirm: true` and `app_metadata.access = active`, and `handle_new_user` inserts `profiles.role = 'player'` with access active. A public `/signup` account does not get that claim, so it stays pending.
 
-`handle_new_user` reads `full_name`, then `name`, then the mailbox name. It copies `avatar_url` or `picture` only when the value is an `https` URL up to 2000 characters. A missing name becomes `Player`. It never reads a role from user metadata.
+`handle_new_user` reads `full_name`, then `name`, then the mailbox name. It copies `avatar_url` or `picture` only when the value is an `https` URL up to 2000 characters. A missing name becomes `Player`. It never reads a role or an access flag from user metadata. Club access comes only from `raw_app_meta_data.access = active`, which the service role sets for an invite.
 
 ## Same email, one account
 
