@@ -293,6 +293,11 @@ function isHeaderName(name: string): boolean {
   return HEADER_NAMES.has(normalizeName(name))
 }
 
+/** A zeroed Club Dues row kept so later rows do not shift, e.g. "Srihari (merged – see row 13)". */
+function isMergedSheetName(name: string): boolean {
+  return name.toLowerCase().includes('(merged')
+}
+
 function isTotalLabel(value: string | null): boolean {
   if (!value) return false
   return /^(total|totals|grand total|helper|sum|subtotal)\b/i.test(value.trim())
@@ -303,7 +308,7 @@ export function parseDuesGrid(values: unknown[][], startRow = 1): ParsedAccount[
   const byKey = new Map<string, ParsedAccount>()
   values.forEach((row) => {
     const sheetName = sheetText(cell(row, DUES_NAME_COL), 120)
-    if (!sheetName || isHeaderName(sheetName)) return
+    if (!sheetName || isHeaderName(sheetName) || isMergedSheetName(sheetName)) return
     const sheetKey = normalizeName(sheetName)
     if (!sheetKey) return
     const next: ParsedAccount = {
