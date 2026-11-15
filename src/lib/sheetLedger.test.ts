@@ -23,12 +23,18 @@ import {
   buildPlayerLedger,
   chargeGroupHeading,
   describeCharge,
+  duesBalanceStat,
+  duesMoneyLabel,
+  duesPaymentStanding,
   duesPath,
+  feeStatusLabel,
   duesUrl,
   explicitMemoToken,
   interpretFinanceSheet,
+  isSplitsOnlyAccount,
   linkNames,
   matchSheetName,
+  memberBalanceCents,
   memberIdFromParam,
   memoToken,
   nameMatchScore,
@@ -53,10 +59,12 @@ const NALAN = '77777777-7777-4777-8777-777777777777'
 const ANUJ = '88888888-8888-4888-8888-888888888888'
 const BEN = '99999999-9999-4999-8999-999999999999'
 const OTHER_BEN = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+const PRANAV = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+const CLUB = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 
 const roster: RosterPerson[] = [
   { id: ANMOL, fullName: 'Anmol Sharma' },
-  { id: CHRIS, fullName: 'Christopher Selvaraj' },
+  { id: CHRIS, fullName: 'Christopher Agustian Selvaraj' },
   { id: SARO, fullName: 'Saravanan Manickavasagam' },
   { id: SRINI, fullName: 'Srivatsan Srinivasan' },
   { id: SUNDAR, fullName: 'Srivatsan Sundararajan' },
@@ -127,6 +135,45 @@ test('aliases and first names match one member, and the two Srivatsans stay apar
   assert.equal(matchSheetName('Srivatsan Sundararajan', roster, maps), SUNDAR)
   assert.equal(nameMatchScore('Srivatsan', 'Srivatsan Srinivasan'), 60)
   assert.equal(nameMatchScore('Srivatsan Srini', 'Srivatsan Sundararajan'), null)
+  assert.equal(nameMatchScore('Christopher Selvaraj', 'Christopher Agustian Selvaraj'), 90)
+  assert.equal(nameMatchScore('Chris', 'Christopher Agustian Selvaraj'), 55)
+  assert.equal(nameMatchScore('Thyagy Krishnamurthy', 'Thyagy K'), null)
+  assert.equal(nameMatchScore('Ben', 'Cheetahs Club'), null)
+})
+
+test('a short splits name links to the same profile when that full name is unique', () => {
+  const clubRoster: RosterPerson[] = [...roster, { id: CLUB, fullName: 'Cheetahs Club' }, { id: PRANAV, fullName: 'Pranav Nandan' }]
+  assert.equal(matchSheetName('Christopher Selvaraj', clubRoster, []), CHRIS)
+  assert.equal(matchSheetName('Chris', clubRoster, []), CHRIS)
+  assert.equal(matchSheetName('Ben', clubRoster, []), BEN)
+  assert.equal(matchSheetName('Ben Thomas', clubRoster, []), BEN)
+  assert.equal(matchSheetName('Cheetahs Club', clubRoster, []), null)
+  assert.equal(matchSheetName('Pranav', clubRoster, []), PRANAV)
+  const linked = linkNames(
+    ['Chris', 'Christopher Selvaraj', 'Nalan', 'Nalan Karuppaiah', 'Ben', 'Ben Thomas', 'Pranav', 'Pranav Nandan', 'Cheetahs Club'],
+    clubRoster,
+    [],
+  )
+  assert.equal(linked.profileIdByKey.get('christopher selvaraj'), CHRIS)
+  assert.equal(linked.profileIdByKey.get('chris'), CHRIS)
+  assert.equal(linked.profileIdByKey.get('nalan karuppaiah'), NALAN)
+  assert.equal(linked.profileIdByKey.get('nalan'), NALAN)
+  assert.equal(linked.profileIdByKey.get('ben'), BEN)
+  assert.equal(linked.profileIdByKey.get('ben thomas'), BEN)
+  assert.equal(linked.profileIdByKey.get('pranav'), PRANAV)
+  assert.equal(linked.profileIdByKey.get('pranav nandan'), PRANAV)
+  assert.equal(linked.profileIdByKey.has('cheetahs club'), false)
+  assert.deepEqual(linked.unmatched, ['Cheetahs Club'])
+  const mapped = linkNames(['Chris', 'Christopher Selvaraj'], clubRoster, [{ sheetKey: 'chris', profileId: BEN }])
+  assert.equal(mapped.profileIdByKey.get('chris'), BEN)
+  assert.equal(mapped.profileIdByKey.get('christopher selvaraj'), CHRIS)
+  assert.deepEqual(mapped.unmatched, [])
+  const blocked = linkNames(['Chris'], clubRoster, [
+    { sheetKey: 'chris', profileId: BEN },
+    { sheetKey: 'chris', profileId: CHRIS },
+  ])
+  assert.equal(blocked.profileIdByKey.has('chris'), false)
+  assert.deepEqual(blocked.unmatched, ['Chris'])
 })
 
 test('an admin map wins, and two people with the same first name stay unmatched', () => {
@@ -138,6 +185,184 @@ test('an admin map wins, and two people with the same first name stay unmatched'
   const linked = linkNames(['Anamol', 'Srivatsan', 'Nobody'], roster, [])
   assert.equal(linked.profileIdByKey.get('anamol'), ANMOL)
   assert.deepEqual(linked.unmatched, ['Nobody', 'Srivatsan'])
+  const ambiguous = linkNames(['Ben', 'Ben Thomas', 'Ben Carter'], twoBens, [])
+  assert.equal(ambiguous.profileIdByKey.has('ben'), false)
+  assert.equal(ambiguous.profileIdByKey.get('ben thomas'), BEN)
+  assert.equal(ambiguous.profileIdByKey.get('ben carter'), OTHER_BEN)
+  assert.deepEqual(ambiguous.unmatched, ['Ben'])
+})
+
+test('Nalan on the dues tab and Nalan on splits are one balance, with the games as detail', () => {
+  const duesRow = Array.from({ length: 14 }, () => '')
+  duesRow[DUES_NAME_COL] = 'Nalan Karuppaiah'
+  duesRow[DUES_STATUS_COL] = 'Active'
+  duesRow[DUES_FEE_COL] = 100
+  duesRow[DUES_GAMES_COL] = 40
+  duesRow[DUES_BALANCE_COL] = -140
+  const names = Array.from({ length: SPLIT_RECON_COL + 1 }, () => '')
+  names[SPLIT_NAME_START] = 'Nalan'
+  const game = Array.from({ length: SPLIT_RECON_COL + 1 }, () => '')
+  game[SPLIT_DATE_COL] = '1/11/2026'
+  game[SPLIT_TYPE_COL] = 'Game #1'
+  game[SPLIT_NAME_START] = 25
+  const water = Array.from({ length: SPLIT_RECON_COL + 1 }, () => '')
+  water[SPLIT_DATE_COL] = '2/1/2026'
+  water[SPLIT_TYPE_COL] = 'Game #2 Water'
+  water[SPLIT_NAME_START] = 15
+  const parsed = parseFinanceGrid({
+    duesValues: [['', 'Name'], duesRow],
+    splitsValues: [names, [], game, water],
+    splitsStartRow: 2,
+  })
+  const dues = parsed.accounts.find((row) => row.sheetKey === 'nalan karuppaiah')
+  const splits = parsed.accounts.find((row) => row.sheetKey === 'nalan')
+  assert.ok(dues)
+  assert.ok(splits)
+  assert.equal(isSplitsOnlyAccount(dues), false)
+  assert.equal(isSplitsOnlyAccount(splits), true)
+  assert.equal(dues.balanceDueCents, -14000)
+  assert.equal(splits.balanceDueCents, -4000)
+  const linked = linkNames(parsed.names, roster, [])
+  assert.equal(linked.profileIdByKey.get('nalan karuppaiah'), NALAN)
+  assert.equal(linked.profileIdByKey.get('nalan'), NALAN)
+
+  const accounts: SheetAccount[] = parsed.accounts.map((row) => ({
+    ...row,
+    id: row.sheetKey,
+    profileId: linked.profileIdByKey.get(row.sheetKey) ?? null,
+  }))
+  const charges: SheetCharge[] = parsed.charges.map((row) => ({
+    ...row,
+    id: `${row.sheetKey}-${row.sheetRow}`,
+    profileId: linked.profileIdByKey.get(row.sheetKey) ?? null,
+  }))
+  const ledger = buildPlayerLedger(accounts, charges)
+  assert.equal(ledger.balanceDueCents, -14000)
+  assert.equal(ledger.owedCents, 14000)
+  assert.equal(ledger.totalPaidCents, 0)
+  assert.equal(ledger.lines.find((line) => line.kind === 'membership')?.amountCents, 10000)
+  assert.deepEqual(
+    ledger.lines.filter((line) => line.kind === 'game').map((line) => [line.title, line.amountCents]),
+    [
+      ['Game dues', 2500],
+      ['Water', 1500],
+    ],
+  )
+  assert.equal(ledger.gapCents, 0)
+  assert.equal(memberBalanceCents(accounts), -14000)
+
+  const splitsOnly = buildPlayerLedger(
+    accounts.filter((row) => row.sheetKey === 'nalan'),
+    charges,
+  )
+  assert.equal(splitsOnly.balanceDueCents, -4000)
+  assert.equal(splitsOnly.lines.filter((line) => line.kind === 'game').length, 2)
+  assert.equal(memberBalanceCents(accounts.filter((row) => row.sheetKey === 'nalan')), -4000)
+})
+
+test('sheet fee status becomes a short standing, with partial pay and credit called out', () => {
+  assert.deepEqual(feeStatusLabel('Pending Post'), {
+    label: 'Paid (pending post)',
+    detail: null,
+    tone: 'pending',
+  })
+  assert.deepEqual(feeStatusLabel('Pending Post - Zelle 11/16'), {
+    label: 'Paid (pending post)',
+    detail: 'Zelle 11/16',
+    tone: 'pending',
+  })
+  assert.equal(feeStatusLabel('Paid to Saro - Needs Validation')?.label, 'Paid to Saro, needs validation')
+  assert.equal(feeStatusLabel('Paid - Validated')?.label, 'Paid')
+  assert.equal(feeStatusLabel('credit claim under review')?.label, 'Credit claim under review')
+  assert.equal(feeStatusLabel('Waitlist')?.label, 'Waitlist')
+  const partial = duesPaymentStanding(
+    account({
+      sheetKey: 'partial',
+      sheetName: 'Partial',
+      clubFeeStatus: 'Paid - Validated',
+      receivedTotalCents: 5000,
+      balanceDueCents: -2500,
+      paymentNotes: 'Zelle 11/16',
+    }),
+  )
+  assert.equal(partial?.label, 'Paid')
+  assert.equal(partial?.balanceLine, 'Partially paid, $25.00 remaining')
+  assert.equal(partial?.notes, 'Zelle 11/16')
+  const credit = duesPaymentStanding(
+    account({
+      sheetKey: 'credit',
+      sheetName: 'Credit',
+      clubFeeStatus: null,
+      balanceDueCents: 55,
+      paymentNotes: 'credit claim under review',
+    }),
+  )
+  assert.equal(credit?.label, 'Credit claim under review')
+  assert.equal(credit?.balanceLine, '$0.55 credit')
+  assert.deepEqual(duesBalanceStat(55), { label: 'Credit', value: '$0.55' })
+  assert.deepEqual(duesBalanceStat(673), { label: 'Credit', value: '$6.73' })
+  assert.deepEqual(duesBalanceStat(0), { label: 'Balance due', value: '$0.00' })
+  assert.deepEqual(duesBalanceStat(-14000), { label: 'Balance due', value: '-$140.00' })
+  assert.equal(duesMoneyLabel(673), 'Credit $6.73')
+  assert.equal(duesMoneyLabel(-14000), 'Balance due -$140.00')
+  const dated = duesPaymentStanding(
+    account({
+      sheetKey: 'post',
+      sheetName: 'Post',
+      clubFeeStatus: 'Pending Post',
+      balanceDueCents: 0,
+      receivedTotalCents: 100,
+      paymentNotes: 'Zelle 11/16',
+    }),
+  )
+  assert.equal(dated?.label, 'Paid (pending post)')
+  assert.equal(dated?.detail, 'Zelle 11/16')
+})
+
+test('Rajesh Ravikumar stays paid at $0 when the Rajesh splits balance is linked', () => {
+  const RAJESH = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+  const dues = account({
+    sheetKey: 'rajesh ravikumar',
+    sheetName: 'Rajesh Ravikumar',
+    profileId: RAJESH,
+    clubStatus: 'Active',
+    clubFeeCents: 10000,
+    clubFeeStatus: 'Paid - Validated',
+    receivedTotalCents: 12673,
+    gameChargesTotalCents: 2673,
+    balanceDueCents: 0,
+    paymentNotes: 'Paid in full',
+  })
+  const splits = account({
+    sheetKey: 'rajesh',
+    sheetName: 'Rajesh',
+    profileId: RAJESH,
+    clubStatus: null,
+    balanceDueCents: -2673,
+  })
+  const people: RosterPerson[] = [...roster, { id: RAJESH, fullName: 'Rajesh Ravikumar' }]
+  const linked = linkNames(['Rajesh Ravikumar', 'Rajesh'], people, [])
+  assert.equal(linked.profileIdByKey.get('rajesh ravikumar'), RAJESH)
+  assert.equal(linked.profileIdByKey.get('rajesh'), RAJESH)
+  assert.equal(isSplitsOnlyAccount(splits), true)
+  const ledger = buildPlayerLedger(
+    [dues, splits],
+    [charge({ sheetKey: 'rajesh', sheetName: 'Rajesh', amountCents: 2673, sheetRow: 12, profileId: RAJESH })],
+  )
+  assert.equal(ledger.balanceDueCents, 0)
+  assert.equal(ledger.owedCents, 0)
+  assert.equal(ledger.state, 'paid')
+  assert.equal(ledger.standings.length, 1)
+  assert.equal(ledger.standings[0]?.label, 'Paid')
+  assert.equal(ledger.standings[0]?.tone, 'paid')
+  assert.equal(ledger.standings[0]?.notes, 'Paid in full')
+  assert.equal(ledger.standings[0]?.balanceLine, null)
+  assert.equal(memberBalanceCents([dues, splits]), 0)
+  assert.equal(ledger.lines.some((line) => line.kind === 'game' && line.amountCents === 2673), true)
+  assert.deepEqual(
+    ledger.lines.map((line) => line.title),
+    ['Membership', 'Game dues'],
+  )
 })
 
 test('payments cover membership, then umpiring, then the oldest game', () => {

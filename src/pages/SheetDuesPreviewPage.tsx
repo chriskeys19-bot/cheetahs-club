@@ -79,6 +79,75 @@ const empty = buildPlayerLedger(
   [],
 )
 
+const nalan = buildPlayerLedger(
+  [
+    account({
+      sheetName: 'Nalan Karuppaiah',
+      clubFeeCents: 10000,
+      gameChargesTotalCents: 4000,
+      balanceDueCents: -14000,
+      clubStatus: 'Active',
+    }),
+    account({
+      sheetName: 'Nalan',
+      clubStatus: null,
+      gameChargesTotalCents: null,
+      balanceDueCents: -4000,
+    }),
+  ],
+  [
+    charge({
+      sheetKey: 'nalan',
+      sheetName: 'Nalan',
+      sheetRow: 4,
+      amountCents: 2500,
+      chargeType: 'Game #1',
+      chargeKind: 'dues',
+    }),
+    charge({
+      sheetKey: 'nalan',
+      sheetName: 'Nalan',
+      sheetRow: 5,
+      amountCents: 1500,
+      chargeType: 'Game #2 Water',
+      chargeKind: 'water',
+      gameLabel: 'Game #2',
+      chargeDate: '2026-02-01',
+    }),
+  ],
+)
+
+const rajesh = buildPlayerLedger(
+  [
+    account({
+      sheetName: 'Rajesh Ravikumar',
+      clubFeeCents: 10000,
+      clubFeeStatus: 'Paid - Validated',
+      receivedTotalCents: 12673,
+      gameChargesTotalCents: 2673,
+      balanceDueCents: 0,
+      paymentNotes: 'Paid in full',
+    }),
+    account({
+      sheetName: 'Rajesh',
+      clubStatus: null,
+      gameChargesTotalCents: null,
+      balanceDueCents: -2673,
+    }),
+  ],
+  [
+    charge({
+      sheetKey: 'rajesh',
+      sheetName: 'Rajesh',
+      sheetRow: 12,
+      amountCents: 2673,
+      chargeType: 'Game #3',
+      chargeKind: 'dues',
+      gameLabel: 'Game #3',
+    }),
+  ],
+)
+
 const synced = '2026-11-14T20:40:00.000Z'
 
 export function SheetDuesPreviewPage() {
@@ -154,6 +223,50 @@ export function SheetDuesPreviewPage() {
         wrongLink={false}
         invalidLink={false}
         headingId="preview-empty"
+      />
+      <SheetDuesView
+        loading={false}
+        error={null}
+        notice={null}
+        memberName="Nalan Karuppaiah"
+        ledger={nalan}
+        syncedAt={synced}
+        lastAttemptFailed={false}
+        lastAttemptAt={null}
+        syncSource="scheduled"
+        syncError={null}
+        zelleEmail="treasurercheetahscricket@gmail.com"
+        memo={zelleMemo('Nalan Karuppaiah', null, '1114')}
+        showSync={false}
+        refreshing={false}
+        refreshError={null}
+        onRefresh={null}
+        duesLink={null}
+        wrongLink={false}
+        invalidLink={false}
+        headingId="preview-nalan"
+      />
+      <SheetDuesView
+        loading={false}
+        error={null}
+        notice={null}
+        memberName="Rajesh Ravikumar"
+        ledger={rajesh}
+        syncedAt={synced}
+        lastAttemptFailed={false}
+        lastAttemptAt={null}
+        syncSource="scheduled"
+        syncError={null}
+        zelleEmail="treasurercheetahscricket@gmail.com"
+        memo={zelleMemo('Rajesh Ravikumar', null, '1114')}
+        showSync={false}
+        refreshing={false}
+        refreshError={null}
+        onRefresh={null}
+        duesLink={null}
+        wrongLink={false}
+        invalidLink={false}
+        headingId="preview-rajesh"
       />
     </main>
   )

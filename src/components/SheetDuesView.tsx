@@ -3,7 +3,15 @@ import { formatDateOnly } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
 import { sheetSyncedLabel, type SheetSyncSource } from '../lib/sheetDues.ts'
 import { splitwiseSyncSourceLabel } from '../lib/splitwiseSyncLabel.ts'
-import { chargeGroupHeading, type ChargeGroup, type LedgerLine, type PlayerLedger } from '../lib/sheetLedger.ts'
+import {
+  chargeGroupHeading,
+  duesBalanceStat,
+  type ChargeGroup,
+  type DuesPaymentStanding,
+  type LedgerLine,
+  type PaymentTone,
+  type PlayerLedger,
+} from '../lib/sheetLedger.ts'
 
 function useCopy(value: string): { label: string; onCopy: () => void } {
   const [copied, setCopied] = useState(false)
@@ -33,6 +41,28 @@ function CopyLine({ label, value }: { label: string; value: string }) {
         {copy.label}
       </button>
     </div>
+  )
+}
+
+function standingClass(tone: PaymentTone): string {
+  if (tone === 'pending') return 'tag tag-gold tag-sentence'
+  if (tone === 'paid') return 'tag tag-navy tag-sentence'
+  return 'tag tag-sentence'
+}
+
+function PaymentStanding({ standing, showName }: { standing: DuesPaymentStanding; showName: boolean }) {
+  return (
+    <article className="info-card">
+      {showName ? <h3>{standing.sheetName}</h3> : null}
+      {standing.label ? (
+        <p className="tag-row">
+          <span className={standingClass(standing.tone)}>{standing.label}</span>
+          {standing.detail ? <span>{standing.detail}</span> : null}
+        </p>
+      ) : null}
+      {standing.balanceLine ? <p>{standing.balanceLine}</p> : null}
+      {standing.notes ? <p>Payment notes: {standing.notes}</p> : null}
+    </article>
   )
 }
 
@@ -175,14 +205,26 @@ export function SheetDuesView({
               <strong>{formatCents(ledger.totalUnpaidCents)}</strong>
             </li>
             <li>
-              <span>Balance due</span>
-              <strong>{formatCents(ledger.balanceDueCents)}</strong>
+              <span>{duesBalanceStat(ledger.balanceDueCents).label}</span>
+              <strong>{duesBalanceStat(ledger.balanceDueCents).value}</strong>
             </li>
           </ul>
           <p className="fine-print">
-            Balance due is the sheet total. A negative number is what you owe the club. A positive number is a credit.
+            This is the sheet total. A negative number is what you owe the club. A positive number is a credit.
           </p>
-          {ledger.paymentNotes ? <p>Payment notes: {ledger.paymentNotes}</p> : null}
+          {ledger.standings.length > 0 ? (
+            <div className="card-list">
+              {ledger.standings.map((standing) => (
+                <PaymentStanding
+                  key={standing.sheetKey}
+                  standing={standing}
+                  showName={ledger.standings.length > 1}
+                />
+              ))}
+            </div>
+          ) : ledger.paymentNotes ? (
+            <p>Payment notes: {ledger.paymentNotes}</p>
+          ) : null}
           {ledger.gapCents !== 0 ? (
             <p className="fine-print">
               The lines below and the sheet balance differ by {formatCents(Math.abs(ledger.gapCents))}. The balance due
