@@ -1,9 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router'
 import { MemberCombobox } from './MemberCombobox.tsx'
-import { formatCents } from '../lib/money.ts'
 import { loadMembers } from '../lib/members.ts'
-import { duesPath, duesUrl, explicitMemoToken, memberBalanceCents, zelleMemo } from '../lib/sheetLedger.ts'
+import { duesMoneyLabel, duesPath, duesUrl, explicitMemoToken, memberBalanceCents, zelleMemo } from '../lib/sheetLedger.ts'
 import {
   loadSheetClub,
   removeMemoOverride,
@@ -224,7 +223,7 @@ export function SheetClubDues({ isAdmin }: { isAdmin: boolean }) {
                 <Link to={duesPath(row.id)}>{row.name}</Link>
               </h3>
               <p className="money-line">
-                <span>Balance due {formatCents(row.balance)}</span>
+                <span>{duesMoneyLabel(row.balance)}</span>
               </p>
               <p className="fine-print">{row.sheetNames.join(', ')}</p>
               <CopyLink value={duesUrl(origin, row.id)} />
@@ -243,7 +242,7 @@ export function SheetClubDues({ isAdmin }: { isAdmin: boolean }) {
             return (
               <li key={name}>
                 {name}
-                {row ? ` · balance due ${formatCents(row.balance)}` : ''}
+                {row ? ` · ${duesMoneyLabel(row.balance)}` : ''}
               </li>
             )
           })}

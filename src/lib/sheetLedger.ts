@@ -698,6 +698,17 @@ export function memberBalanceCents(accounts: ParsedAccount[]): number {
   return accountsForMoney(accounts).reduce((sum, account) => sum + (account.balanceDueCents ?? 0), 0)
 }
 
+/** Headline and rollup label. A positive balance is a credit, not an amount due. */
+export function duesBalanceStat(balanceCents: number): { label: string; value: string } {
+  if (balanceCents > 0) return { label: 'Credit', value: formatCents(balanceCents) }
+  return { label: 'Balance due', value: formatCents(balanceCents) }
+}
+
+export function duesMoneyLabel(balanceCents: number): string {
+  const stat = duesBalanceStat(balanceCents)
+  return `${stat.label} ${stat.value}`
+}
+
 function compactStatus(value: string): string {
   return value.replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase()
 }

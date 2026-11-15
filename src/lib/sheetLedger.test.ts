@@ -23,6 +23,8 @@ import {
   buildPlayerLedger,
   chargeGroupHeading,
   describeCharge,
+  duesBalanceStat,
+  duesMoneyLabel,
   duesPaymentStanding,
   duesPath,
   feeStatusLabel,
@@ -297,6 +299,12 @@ test('sheet fee status becomes a short standing, with partial pay and credit cal
   )
   assert.equal(credit?.label, 'Credit claim under review')
   assert.equal(credit?.balanceLine, '$0.55 credit')
+  assert.deepEqual(duesBalanceStat(55), { label: 'Credit', value: '$0.55' })
+  assert.deepEqual(duesBalanceStat(673), { label: 'Credit', value: '$6.73' })
+  assert.deepEqual(duesBalanceStat(0), { label: 'Balance due', value: '$0.00' })
+  assert.deepEqual(duesBalanceStat(-14000), { label: 'Balance due', value: '-$140.00' })
+  assert.equal(duesMoneyLabel(673), 'Credit $6.73')
+  assert.equal(duesMoneyLabel(-14000), 'Balance due -$140.00')
   const dated = duesPaymentStanding(
     account({
       sheetKey: 'post',
@@ -351,6 +359,10 @@ test('Rajesh Ravikumar stays paid at $0 when the Rajesh splits balance is linked
   assert.equal(ledger.standings[0]?.balanceLine, null)
   assert.equal(memberBalanceCents([dues, splits]), 0)
   assert.equal(ledger.lines.some((line) => line.kind === 'game' && line.amountCents === 2673), true)
+  assert.deepEqual(
+    ledger.lines.map((line) => line.title),
+    ['Membership', 'Game dues'],
+  )
 })
 
 test('payments cover membership, then umpiring, then the oldest game', () => {

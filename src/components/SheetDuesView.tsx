@@ -5,6 +5,7 @@ import { sheetSyncedLabel, type SheetSyncSource } from '../lib/sheetDues.ts'
 import { splitwiseSyncSourceLabel } from '../lib/splitwiseSyncLabel.ts'
 import {
   chargeGroupHeading,
+  duesBalanceStat,
   type ChargeGroup,
   type DuesPaymentStanding,
   type LedgerLine,
@@ -204,12 +205,12 @@ export function SheetDuesView({
               <strong>{formatCents(ledger.totalUnpaidCents)}</strong>
             </li>
             <li>
-              <span>Balance due</span>
-              <strong>{formatCents(ledger.balanceDueCents)}</strong>
+              <span>{duesBalanceStat(ledger.balanceDueCents).label}</span>
+              <strong>{duesBalanceStat(ledger.balanceDueCents).value}</strong>
             </li>
           </ul>
           <p className="fine-print">
-            Balance due is the sheet total. A negative number is what you owe the club. A positive number is a credit.
+            This is the sheet total. A negative number is what you owe the club. A positive number is a credit.
           </p>
           {ledger.standings.length > 0 ? (
             <div className="card-list">
