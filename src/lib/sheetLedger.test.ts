@@ -192,6 +192,27 @@ test('an admin map wins, and two people with the same first name stay unmatched'
   assert.deepEqual(ambiguous.unmatched, ['Ben'])
 })
 
+test('a merged Club Dues row is skipped and is not a second player', () => {
+  const srihari = Array.from({ length: 14 }, () => '')
+  srihari[DUES_NAME_COL] = 'Srihari'
+  srihari[DUES_STATUS_COL] = 'FT'
+  srihari[DUES_FEE_COL] = 230
+  srihari[DUES_GAMES_COL] = 20
+  srihari[DUES_BALANCE_COL] = -250
+  const merged = Array.from({ length: 14 }, () => '')
+  merged[DUES_NAME_COL] = 'Srihari (merged – see row 13)'
+  merged[DUES_NOTES_COL] = 'Duplicate of Srihari (row 13)'
+  const parsed = parseFinanceGrid({
+    duesValues: [['', 'Name'], srihari, merged],
+    splitsValues: [],
+  })
+  assert.deepEqual(
+    parsed.accounts.map((row) => [row.sheetName, row.balanceDueCents]),
+    [['Srihari', -25000]],
+  )
+  assert.deepEqual(parsed.names, ['Srihari'])
+})
+
 test('Nalan on the dues tab and Nalan on splits are one balance, with the games as detail', () => {
   const duesRow = Array.from({ length: 14 }, () => '')
   duesRow[DUES_NAME_COL] = 'Nalan Karuppaiah'
