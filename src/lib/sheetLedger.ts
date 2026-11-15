@@ -7,6 +7,8 @@
 // when that pool covers it. A blank sheet status stays Unpaid. The headline
 // balance is column M (negative means the player owes the club).
 
+import { formatCents } from './money.ts'
+
 export const DEFAULT_ZELLE_EMAIL = 'treasurercheetahscricket@gmail.com'
 export const DEFAULT_REMINDER_MMDD = '1114'
 export const MEMO_PREFIX = 'CHW26'
@@ -162,6 +164,18 @@ export type ChargeGroup = {
   lines: LedgerLine[]
 }
 
+export type PaymentTone = 'paid' | 'pending' | 'neutral'
+
+export type DuesPaymentStanding = {
+  sheetKey: string
+  sheetName: string
+  label: string | null
+  detail: string | null
+  tone: PaymentTone
+  balanceLine: string | null
+  notes: string | null
+}
+
 export type PlayerLedger = {
   state: LedgerState
   totalPaidCents: number
@@ -173,6 +187,7 @@ export type PlayerLedger = {
   groups: ChargeGroup[]
   paymentNotes: string | null
   clubStatus: string | null
+  standings: DuesPaymentStanding[]
   /** Line remainder minus the sheet's unpaid amount. Zero when they agree. */
   gapCents: number
 }
@@ -518,7 +533,14 @@ function asGrid(value: unknown): unknown[][] | null {
 }
 
 function tokensOf(name: string): string[] {
-  return normalizeName(name).split(' ').filter(Boolean)
+  return normalizeName(name)
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .split(' ')
+    .filter(Boolean)
+}
+
+function isClubLoginName(name: string | null | undefined): boolean {
+  return normalizeName(name ?? '') === 'cheetahs club'
 }
 
 function compatibleToken(sheetToken: string, profileToken: string): boolean {
@@ -532,21 +554,33 @@ export function nameMatchScore(sheetName: string, profileName: string): number |
   const sheetNorm = normalizeName(sheetName)
   const profileNorm = normalizeName(profileName)
   if (!sheetNorm || !profileNorm) return null
+  if (isClubLoginName(profileName)) return null
   if (sheetNorm === profileNorm) return 100
   const sheetTokens = tokensOf(sheetName)
   const profileTokens = tokensOf(profileName)
   const sheetFirst = sheetTokens[0]
   const profileFirst = profileTokens[0]
-  if (!sheetFirst || sheetFirst !== profileFirst) return null
+  if (!sheetFirst || !profileFirst || !compatibleToken(sheetFirst, profileFirst)) return null
   if (sheetTokens.length === 1) {
     if (sheetFirst.length < 3) return null
-    return 60
+    return sheetFirst === profileFirst ? 60 : 55
   }
   if (sheetTokens.length > profileTokens.length) return null
+  const used = new Set<number>([0])
   for (let index = 1; index < sheetTokens.length; index += 1) {
     const sheetToken = sheetTokens[index]
-    const profileToken = profileTokens[index]
-    if (!sheetToken || !profileToken || !compatibleToken(sheetToken, profileToken)) return null
+    if (!sheetToken) return null
+    let found = -1
+    for (let position = 0; position < profileTokens.length; position += 1) {
+      if (used.has(position)) continue
+      const profileToken = profileTokens[position]
+      if (profileToken && compatibleToken(sheetToken, profileToken)) {
+        found = position
+        break
+      }
+    }
+    if (found < 0) return null
+    used.add(found)
   }
   return 90
 }
@@ -563,7 +597,7 @@ function uniqueBest(scored: { id: string; score: number }[]): string | null {
 function scoresFor(sheetName: string, roster: RosterPerson[]): { id: string; score: number }[] {
   const scored: { id: string; score: number }[] = []
   for (const person of roster) {
-    if (!person.fullName) continue
+    if (!person.fullName || isClubLoginName(person.fullName)) continue
     const score = nameMatchScore(sheetName, person.fullName)
     if (score == null) continue
     scored.push({ id: person.id, score })
@@ -571,19 +605,31 @@ function scoresFor(sheetName: string, roster: RosterPerson[]): { id: string; sco
   return scored
 }
 
-export function matchSheetName(sheetName: string, roster: RosterPerson[], maps: NameMap[]): string | null {
+function uniqueAutoMatch(sheetName: string, roster: RosterPerson[]): string | null {
+  const key = normalizeName(sheetName)
+  const directId = uniqueBest(scoresFor(key, roster))
+  if (directId) return directId
+  const alias = BUILTIN_ALIASES[key]
+  if (!alias) return null
+  return uniqueBest(scoresFor(alias, roster))
+}
+
+function profileFromMaps(sheetName: string, maps: NameMap[]): string | null {
   const key = normalizeName(sheetName)
   if (!key) return null
   const mapped = maps.filter((entry) => normalizeName(entry.sheetKey) === key)
   const ids = new Set(mapped.map((entry) => entry.profileId).filter(Boolean))
   if (ids.size === 1) return [...ids][0] ?? null
-  if (ids.size > 1) return null
-  const alias = BUILTIN_ALIASES[key]
-  if (alias) {
-    const viaAlias = uniqueBest(scoresFor(alias, roster))
-    if (viaAlias) return viaAlias
-  }
-  return uniqueBest(scoresFor(key, roster))
+  return null
+}
+
+export function matchSheetName(sheetName: string, roster: RosterPerson[], maps: NameMap[]): string | null {
+  const key = normalizeName(sheetName)
+  if (!key) return null
+  const mapped = profileFromMaps(key, maps)
+  if (mapped) return mapped
+  if (maps.some((entry) => normalizeName(entry.sheetKey) === key)) return null
+  return uniqueAutoMatch(sheetName, roster)
 }
 
 export function linkNames(
@@ -621,6 +667,114 @@ function chargeTitle(charge: ParsedCharge): string {
   return charge.chargeType
 }
 
+/**
+ * A splits-only shell is created for a GC Splits name that is not on the dues
+ * tab. It has no club fee, payment, or expenses total. Its balance is just the
+ * game charges. The dues tab already includes those charges in column L and in
+ * the balance, so a linked shell must not be added again.
+ */
+export function isSplitsOnlyAccount(account: ParsedAccount): boolean {
+  return (
+    account.gameChargesTotalCents == null &&
+    account.clubFeeCents === 0 &&
+    account.umpiringFeeCents === 0 &&
+    account.receivedSaroCents === 0 &&
+    account.receivedBenCents === 0 &&
+    account.receivedTotalCents === 0 &&
+    account.clubStatus == null &&
+    account.clubFeeStatus == null &&
+    account.umpiringStatus == null &&
+    account.paymentNotes == null
+  )
+}
+
+function accountsForMoney<T extends ParsedAccount>(accounts: T[]): T[] {
+  const dues = accounts.filter((account) => !isSplitsOnlyAccount(account))
+  return dues.length > 0 ? dues : accounts
+}
+
+/** Club rollup balance. A dues-tab row wins over linked splits-only shells. */
+export function memberBalanceCents(accounts: ParsedAccount[]): number {
+  return accountsForMoney(accounts).reduce((sum, account) => sum + (account.balanceDueCents ?? 0), 0)
+}
+
+function compactStatus(value: string): string {
+  return value.replace(/[\u2013\u2014]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function dateDetail(text: string | null | undefined): string | null {
+  if (!text) return null
+  const zelle = /zelle\s+\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/i.exec(text)
+  if (zelle?.[0]) return zelle[0].replace(/\s+/g, ' ')
+  const date = /\d{1,2}\/\d{1,2}(?:\/\d{2,4})?/.exec(text)
+  return date?.[0] ?? null
+}
+
+/** Sheet fee status, rewritten for the dues page. Unknown text stays as written. */
+export function feeStatusLabel(
+  status: string | null | undefined,
+): { label: string; detail: string | null; tone: PaymentTone } | null {
+  const text = (status ?? '').replace(/\s+/g, ' ').trim()
+  if (!text) return null
+  const compact = compactStatus(text)
+  if (compact.includes('pending post')) {
+    return { label: 'Paid (pending post)', detail: dateDetail(text), tone: 'pending' }
+  }
+  if (compact === 'paid to saro - needs validation') {
+    return { label: 'Paid to Saro, needs validation', detail: null, tone: 'pending' }
+  }
+  if (compact === 'paid - validated') {
+    return { label: 'Paid', detail: null, tone: 'paid' }
+  }
+  if (compact.includes('credit claim under review')) {
+    return { label: 'Credit claim under review', detail: null, tone: 'pending' }
+  }
+  return { label: text, detail: null, tone: 'neutral' }
+}
+
+function knownFeeStatus(status: string | null | undefined): { label: string; detail: string | null; tone: PaymentTone } | null {
+  const mapped = feeStatusLabel(status)
+  if (!mapped || mapped.tone === 'neutral') return null
+  return mapped
+}
+
+function duesBalanceLine(account: ParsedAccount): string | null {
+  const balance = account.balanceDueCents ?? 0
+  if (balance < 0 && account.receivedTotalCents > 0) {
+    return `Partially paid, ${formatCents(-balance)} remaining`
+  }
+  if (balance > 0) return `${formatCents(balance)} credit`
+  return null
+}
+
+export function duesPaymentStanding(account: ParsedAccount): DuesPaymentStanding | null {
+  const fromFee = feeStatusLabel(account.clubFeeStatus)
+  const fromNotes = fromFee ? null : knownFeeStatus(account.paymentNotes)
+  const mapped = fromFee ?? fromNotes
+  let detail = mapped?.detail ?? null
+  if (mapped?.label === 'Paid (pending post)' && !detail) detail = dateDetail(account.paymentNotes)
+  const balanceLine = duesBalanceLine(account)
+  const notes = account.paymentNotes
+  if (!mapped && !balanceLine && !notes) return null
+  return {
+    sheetKey: account.sheetKey,
+    sheetName: account.sheetName,
+    label: mapped?.label ?? null,
+    detail,
+    tone: mapped?.tone ?? 'neutral',
+    balanceLine,
+    notes,
+  }
+}
+
+export function duesPaymentStandings(accounts: ParsedAccount[]): DuesPaymentStanding[] {
+  return accounts.flatMap((account) => {
+    if (isSplitsOnlyAccount(account)) return []
+    const standing = duesPaymentStanding(account)
+    return standing ? [standing] : []
+  })
+}
+
 function absentLedger(): PlayerLedger {
   return {
     state: 'absent',
@@ -633,6 +787,7 @@ function absentLedger(): PlayerLedger {
     groups: [],
     paymentNotes: null,
     clubStatus: null,
+    standings: [],
     gapCents: 0,
   }
 }
@@ -641,12 +796,13 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
   const playable = charges.filter((charge) => charge.amountCents > 0)
   if (accounts.length === 0 && playable.length === 0) return absentLedger()
 
-  const received = accounts.reduce((sum, account) => sum + account.receivedTotalCents, 0)
-  const clubFee = accounts.reduce((sum, account) => sum + Math.max(0, account.clubFeeCents), 0)
-  const umpiring = accounts.reduce((sum, account) => sum + Math.max(0, account.umpiringFeeCents), 0)
-  const balanceDueCents = accounts.reduce((sum, account) => sum + (account.balanceDueCents ?? 0), 0)
-  const notes = [...new Set(accounts.map((account) => account.paymentNotes).filter((note): note is string => Boolean(note)))]
-  const clubStatus = accounts.find((account) => account.clubStatus)?.clubStatus ?? null
+  const money = accountsForMoney(accounts)
+  const received = money.reduce((sum, account) => sum + account.receivedTotalCents, 0)
+  const clubFee = money.reduce((sum, account) => sum + Math.max(0, account.clubFeeCents), 0)
+  const umpiring = money.reduce((sum, account) => sum + Math.max(0, account.umpiringFeeCents), 0)
+  const balanceDueCents = money.reduce((sum, account) => sum + (account.balanceDueCents ?? 0), 0)
+  const notes = [...new Set(money.map((account) => account.paymentNotes).filter((note): note is string => Boolean(note)))]
+  const clubStatus = money.find((account) => account.clubStatus)?.clubStatus ?? null
 
   const draft: Omit<LedgerLine, 'appliedCents' | 'status'>[] = []
   if (clubFee > 0) {
@@ -730,7 +886,8 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
   const appliedTotal = lines.reduce((sum, line) => sum + line.appliedCents, 0)
   const owedCents = balanceDueCents < 0 ? -balanceDueCents : 0
   const creditCents = balanceDueCents > 0 ? balanceDueCents : 0
-  const hasActivity = lines.length > 0 || received !== 0 || balanceDueCents !== 0
+  const standings = duesPaymentStandings(money)
+  const hasActivity = lines.length > 0 || received !== 0 || balanceDueCents !== 0 || standings.length > 0
   const state: LedgerState = !hasActivity ? 'empty' : balanceDueCents < 0 ? 'owed' : 'paid'
 
   return {
@@ -744,6 +901,7 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
     groups: grouped,
     paymentNotes: notes.length > 0 ? notes.join(' · ').slice(0, 500) : null,
     clubStatus,
+    standings,
     gapCents: lineTotal - appliedTotal - owedCents,
   }
 }

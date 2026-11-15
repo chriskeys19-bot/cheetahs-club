@@ -8,12 +8,14 @@
  * from Supabase Vault, not the feedback secret.
  *
  * Spreadsheet: 1ny69ZpWL6c9r_1xofvROJfcVzWlviWAqKYKdvJtY-Ic
- * Tabs: 26 Winter Club Dues, 26 Winter GC Splits
+ * Tabs: '26 Winter Club Dues, '26 Winter GC Splits
+ * Each tab name starts with an apostrophe. A1 notation doubles that
+ * apostrophe inside the surrounding quotes.
  */
 
 var SPREADSHEET_ID = '1ny69ZpWL6c9r_1xofvROJfcVzWlviWAqKYKdvJtY-Ic';
-var DUES_RANGE = "'26 Winter Club Dues'!A1:N400";
-var SPLITS_RANGE = "'26 Winter GC Splits'!A2:AV700";
+var DUES_RANGE = "'''26 Winter Club Dues'!A1:N400";
+var SPLITS_RANGE = "'''26 Winter GC Splits'!A2:AV700";
 
 function doGet() {
   return respond({ ok: false, error: 'POST only' });

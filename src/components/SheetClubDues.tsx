@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { MemberCombobox } from './MemberCombobox.tsx'
 import { formatCents } from '../lib/money.ts'
 import { loadMembers } from '../lib/members.ts'
-import { duesPath, duesUrl, explicitMemoToken, zelleMemo } from '../lib/sheetLedger.ts'
+import { duesPath, duesUrl, explicitMemoToken, memberBalanceCents, zelleMemo } from '../lib/sheetLedger.ts'
 import {
   loadSheetClub,
   removeMemoOverride,
@@ -80,7 +80,7 @@ export function SheetClubDues({ isAdmin }: { isAdmin: boolean }) {
 
   const origin = typeof window === 'undefined' ? 'https://cheetahs-club.pages.dev' : window.location.origin
   const rosterName = new Map(desk.roster.map((row) => [row.id, row.fullName]))
-  const byMember = new Map<string, { name: string; balance: number; sheetNames: string[] }>()
+  const byMember = new Map<string, { name: string; accounts: typeof desk.accounts; sheetNames: string[] }>()
   const unlinked: { sheetName: string; balance: number }[] = []
   for (const account of desk.accounts) {
     if (!account.profileId) {
@@ -89,14 +89,21 @@ export function SheetClubDues({ isAdmin }: { isAdmin: boolean }) {
     }
     const current = byMember.get(account.profileId) ?? {
       name: personName(members, rosterName.get(account.profileId) ?? null, account.profileId),
-      balance: 0,
+      accounts: [],
       sheetNames: [],
     }
-    current.balance += account.balanceDueCents ?? 0
+    current.accounts.push(account)
     current.sheetNames.push(account.sheetName)
     byMember.set(account.profileId, current)
   }
-  const rows = [...byMember.entries()].sort((left, right) => left[1].balance - right[1].balance || left[1].name.localeCompare(right[1].name))
+  const rows = [...byMember.entries()]
+    .map(([id, row]) => ({
+      id,
+      name: row.name,
+      balance: memberBalanceCents(row.accounts),
+      sheetNames: row.sheetNames,
+    }))
+    .sort((left, right) => left.balance - right.balance || left.name.localeCompare(right.name))
   const unmatched = [
     ...new Set([
       ...(desk.status?.unmatchedNames ?? []),
@@ -211,16 +218,16 @@ export function SheetClubDues({ isAdmin }: { isAdmin: boolean }) {
       ) : null}
       {rows.length > 0 ? (
         <ul className="card-list">
-          {rows.map(([id, row]) => (
-            <li key={id} className="info-card">
+          {rows.map((row) => (
+            <li key={row.id} className="info-card">
               <h3>
-                <Link to={duesPath(id)}>{row.name}</Link>
+                <Link to={duesPath(row.id)}>{row.name}</Link>
               </h3>
               <p className="money-line">
                 <span>Balance due {formatCents(row.balance)}</span>
               </p>
               <p className="fine-print">{row.sheetNames.join(', ')}</p>
-              <CopyLink value={duesUrl(origin, id)} />
+              <CopyLink value={duesUrl(origin, row.id)} />
             </li>
           ))}
         </ul>

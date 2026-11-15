@@ -1469,6 +1469,11 @@ a.info-card:focus-visible {
   border-color: var(--color-primary);
 }
 
+.tag-sentence {
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+
 .tag-win {
   background: var(--chip-win-bg);
   color: var(--chip-win-fg);
