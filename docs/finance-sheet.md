@@ -1,6 +1,6 @@
 # Winter dues sheet
 
-My dues reads the Google Sheet **Cheetah CC Finance_2026**. The browser does not call Google. `sync-finance-sheet` copies two tabs into Supabase. Players see their own rows. Captains and admins see every row. The function only reads the sheet.
+My dues reads the Google Sheet **Cheetah CC Finance_2026**. The browser does not call Google. `sync-finance-sheet` copies three tabs into Supabase. Players see their own rows. Captains and admins see every row. The function only reads the sheet.
 
 Splitwise keeps syncing. It stays on the Dues page under **Splitwise**. The winter sheet is what My dues, the Zelle memo, and the line items use. The in-app expenses and charges tabs stay a scratch pad and do not change the sheet.
 
@@ -10,10 +10,13 @@ https://docs.google.com/spreadsheets/d/1ny69ZpWL6c9r_1xofvROJfcVzWlviWAqKYKdvJtY
 
 | Tab | What is copied |
 | --- | --- |
-| `26 Winter Club Dues` | One row per player. B name, C club status, D club fee, E fee status, G umpiring fee, H umpiring status, I money received by Saro, J money received by Ben, K total received, L total game charges, M balance due, N payment notes. |
+| `26 Winter Club Dues` | One row per player. B name, C club status, D club fee, E fee status, G umpiring fee, H umpiring status, I money received by Saro, J money received by Ben, K total received, L total game charges, M balance due, N payment notes, O automatic credit, P manual credit. |
 | `26 Winter GC Splits` | Names in row 2, columns H through AS. Charge rows from row 4. A date, B type, C team, D ground, E cost, G split by, and each player's amount. Column AV is the recon status. Row 510 is a helper row and is skipped. |
+| `Game Dues Ledger` | Row 1 title, row 2 totals, row 3 headers, one player-game from row 4. A date, B team, C game number, D ground, E player, F dues, G allocated paid, H unsettled, I status, J memo, K source. |
 
 Balance due is column M. Negative means the player owes the club. Positive is a credit. A blank cell is treated as missing, not as a crash. A blank fee status does not mark the line paid.
+
+The line under Balance due is the payment standing, the amount still owed, and one credit. That credit is column O plus column P. It is left off when the sum is zero. Column O can be positive while column M is negative. Game rows on My dues come from Game Dues Ledger. Payment status uses allocated paid and unsettled from that tab. A memo is copied as written and replaced on the next sync. Until that tab has been copied, My dues keeps the older game-charge list.
 
 Each line is Paid only when recorded payments (column K) cover it. Payments apply to membership first, then the umpiring fee, then game charges oldest first. Membership, a positive umpiring fee, and each game charge (game dues, water, umpire share) are separate lines. Game rows that share a date, team, game, and ground are grouped.
 
@@ -70,7 +73,7 @@ Use **cheetahscc123@gmail.com** when that account can open the sheet. If the fil
 
 ## What runs
 
-1. Apply `supabase/migrations/20261114211000_sheet_dues.sql`. It stores `finance_sheet_secret` in Vault and schedules `sync-finance-sheet-hourly` at minute 40. It does not know the Apps Script URL yet. Until the URL is in Vault, the job returns without changing dues.
+1. Apply `supabase/migrations/20261114211000_sheet_dues.sql`, then `supabase/migrations/20261116154636_game_dues_ledger.sql`. The first stores `finance_sheet_secret` in Vault and schedules `sync-finance-sheet-hourly` at minute 40. It does not know the Apps Script URL yet. Until the URL is in Vault, the job returns without changing dues. The second stores Game Dues Ledger rows and the credit columns. A sync from the Apps Script before that script is redeployed still updates dues and leaves the ledger table as it is.
 2. Deploy the function:
 
 ```bash
@@ -87,7 +90,7 @@ Do the Google steps while signed in as the account that can open the sheet, pref
 
 1. If that account cannot already open the spreadsheet, share the file with it as Viewer.
 2. Open https://script.google.com/home and create a standalone project. Do not start it from Extensions → Apps Script on the spreadsheet.
-3. Replace `Code.gs` with `google-apps-script/finance-sheet/Code.gs` from this repo. Replace `appsscript.json` with the copy in that folder. The manifest asks for `https://www.googleapis.com/auth/spreadsheets.readonly` and enables the Google Sheets advanced service. In the editor, if Services does not already list Google Sheets, add the Google Sheets API. The script only calls `Spreadsheets.Values.get`.
+3. Replace `Code.gs` with `google-apps-script/finance-sheet/Code.gs` from this repo. Replace `appsscript.json` with the copy in that folder. The manifest asks for `https://www.googleapis.com/auth/spreadsheets.readonly` and enables the Google Sheets advanced service. In the editor, if Services does not already list Google Sheets, add the Google Sheets API. The script only calls `Spreadsheets.Values.get`. It reads `'26 Winter Club Dues'!A1:P400`, `'26 Winter GC Splits'!A2:AV700`, and `'Game Dues Ledger'!A3:K2000`. The first two tab names start with an apostrophe, so those ranges double it. After this file changes, Deploy → Manage deployments → Edit → Version: New version → Deploy. Until that new version is live, the function still syncs dues and splits.
 4. Project Settings → Script properties → Add property. Name `SYNC_SECRET`. The value is the Vault secret, from the SQL editor. This is not the feedback secret.
 
 ```sql

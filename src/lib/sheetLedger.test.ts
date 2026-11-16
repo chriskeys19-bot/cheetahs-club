@@ -23,10 +23,18 @@ import {
   buildPlayerLedger,
   chargeGroupHeading,
   describeCharge,
+  DUES_CREDIT_COL,
+  DUES_MANUAL_CREDIT_COL,
   duesBalanceStat,
   duesMoneyLabel,
   duesPaymentStanding,
+  duesStatusLine,
   duesPath,
+  ledgerDateLabel,
+  ledgerGameLabel,
+  ledgerPaymentStatusText,
+  parseDuesGrid,
+  parseLedgerGrid,
   feeStatusLabel,
   duesUrl,
   explicitMemoToken,
@@ -89,6 +97,8 @@ function account(patch: Partial<SheetAccount> & Pick<SheetAccount, 'sheetKey' | 
     gameChargesTotalCents: null,
     balanceDueCents: 0,
     paymentNotes: null,
+    sheetCreditCents: 0,
+    manualCreditCents: 0,
     ...patch,
   }
 }
@@ -582,6 +592,9 @@ test('a bad sheet response and a missing grid do not throw', () => {
   if ('accounts' in ok) {
     assert.equal(ok.accounts[0]?.sheetName, 'Ben')
     assert.equal(ok.accounts[0]?.balanceDueCents, 0)
+    assert.equal(ok.ledgerRows, null)
+    assert.equal(ok.accounts[0]?.sheetCreditCents, 0)
+    assert.equal(ok.accounts[0]?.manualCreditCents, 0)
   }
 })
 
@@ -610,3 +623,99 @@ test('Zelle memos are one uppercase string and the Srivatsans keep distinct toke
   assert.equal(duesUrl('https://cheetahs-club.pages.dev/', ANMOL), `https://cheetahs-club.pages.dev/dues/${ANMOL}`)
   assert.equal(duesUrl('https://cheetahs-club.pages.dev', null), 'https://cheetahs-club.pages.dev/dues')
 })
+
+test('game dues ledger keeps the sheet allocation and skips blank rows', () => {
+  const header = ['Date', 'Team', 'Game #', 'Ground', 'Player', 'Dues', 'Allocated paid', 'Unsettled', 'Status', 'Memo', 'Source']
+  const partial = ['2026-11-14', 'Cheetahs', 3, 'Fremont Central Park', 'Ben', '$35.00', 0.45, '34.55', 'Partial', 'water share', 'GC Splits!N9']
+  const blank = ['', '', '', '', '', '', '', '', '', '', '']
+  const open = ['11/14/2026', 'Lions', '4', 'Milpitas', 'Anamol', 35, '$0.00', '$35.00', 'open', '', 'GC Splits!N10']
+  const paid = ['2026-10-18', 'Lions', 'Game #1', 'Hayward', 'Cheetahs Club', '30', '30', 0, 'Paid', '  settled  ', 'GC Splits!N4']
+  const rows = parseLedgerGrid([header, partial, blank, open, paid], 3)
+  assert.equal(rows.length, 3)
+  assert.equal(rows[0]?.sheetRow, 4)
+  assert.equal(rows[0]?.sheetName, 'Ben')
+  assert.equal(rows[0]?.gameDate, '2026-11-14')
+  assert.equal(rows[0]?.gameNo, 3)
+  assert.equal(rows[0]?.ground, 'Fremont Central Park')
+  assert.equal(rows[0]?.duesCents, 3500)
+  assert.equal(rows[0]?.paidCents, 45)
+  assert.equal(rows[0]?.unsettledCents, 3455)
+  assert.equal(rows[0]?.status, 'Partial')
+  assert.equal(rows[0]?.memo, 'water share')
+  assert.equal(rows[0]?.source, 'GC Splits!N9')
+  assert.equal(rows[1]?.sheetName, 'Anamol')
+  assert.equal(rows[1]?.paidCents, 0)
+  assert.equal(rows[1]?.unsettledCents, 3500)
+  assert.equal(rows[1]?.status, 'Open')
+  assert.equal(rows[1]?.memo, null)
+  assert.equal(rows[2]?.sheetName, 'Cheetahs Club')
+  assert.equal(rows[2]?.gameNo, 1)
+  assert.equal(rows[2]?.memo, 'settled')
+  assert.equal(ledgerDateLabel('2026-11-14'), 'Nov 14')
+  assert.equal(ledgerGameLabel(3, 'Fremont Central Park'), 'Game #3, Fremont Central Park')
+  assert.equal(ledgerPaymentStatusText(45, 3455), '$0.45 paid, $34.55 unsettled')
+  assert.equal(ledgerPaymentStatusText(0, 3500), '$35.00 unsettled')
+  assert.equal(ledgerPaymentStatusText(3500, 0), 'Paid')
+  assert.equal(ledgerPaymentStatusText(100, 0), 'Paid')
+})
+
+test('column O plus column P is one credit, omitted when the sum is zero', () => {
+  const row = Array.from({ length: 16 }, () => '')
+  row[DUES_NAME_COL] = 'Ben'
+  row[DUES_RECEIVED_COL] = '65.45'
+  row[DUES_BALANCE_COL] = '-4.55'
+  row[DUES_CREDIT_COL] = '$0.45'
+  row[DUES_MANUAL_CREDIT_COL] = '0'
+  const parsed = parseDuesGrid([row], 1)
+  assert.equal(parsed[0]?.sheetCreditCents, 45)
+  assert.equal(parsed[0]?.manualCreditCents, 0)
+  const withManual = [...row]
+  withManual[DUES_MANUAL_CREDIT_COL] = '$1.00'
+  const both = parseDuesGrid([withManual], 1)
+  const ledger = buildPlayerLedger(
+    both.map((accountRow) => ({ ...accountRow, id: accountRow.sheetKey, profileId: null })),
+    [],
+  )
+  assert.equal(ledger.combinedCreditCents, 145)
+  assert.equal(
+    duesStatusLine({
+      balanceDueCents: -3455,
+      totalPaidCents: 45,
+      state: 'owed',
+      combinedCreditCents: 45,
+    })?.text,
+    'Partially paid · $34.55 remaining · Credit +$0.45',
+  )
+  assert.equal(
+    duesStatusLine({
+      balanceDueCents: -455,
+      totalPaidCents: 6545,
+      state: 'owed',
+      combinedCreditCents: 0,
+    })?.text,
+    'Partially paid · $4.55 remaining',
+  )
+  assert.equal(duesStatusLine(ledger)?.creditLabel, 'Credit +$1.45')
+  const read = interpretFinanceSheet(200, {
+    ok: true,
+    dues: { startRow: 1, values: [['', 'Name'], ['', 'Ben']] },
+    splits: { startRow: 2, values: [['Date']] },
+    ledger: {
+      startRow: 3,
+      values: [
+        ['Date', 'Team', 'Game #', 'Ground', 'Player', 'Dues', 'Allocated paid', 'Unsettled', 'Status', 'Memo', 'Source'],
+        partialLedgerRow(),
+      ],
+    },
+  })
+  assert.equal('ledgerRows' in read, true)
+  if ('ledgerRows' in read) {
+    assert.equal(read.ledgerRows?.length, 1)
+    assert.equal(read.ledgerRows?.[0]?.paidCents, 45)
+    assert.equal(read.names.includes('Ben'), true)
+  }
+})
+
+function partialLedgerRow(): string[] {
+  return ['2026-11-14', 'Cheetahs', '3', 'Fremont Central Park', 'Ben', '35', '0.45', '34.55', 'partial', 'note', 'GC Splits!N9']
+}

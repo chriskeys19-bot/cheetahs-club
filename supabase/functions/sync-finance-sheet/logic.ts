@@ -4,6 +4,7 @@ import {
   type NameMap,
   type ParsedAccount,
   type ParsedCharge,
+  type ParsedLedgerRow,
   type RosterPerson,
 } from '../../../src/lib/sheetLedger.ts'
 
@@ -34,7 +35,7 @@ export function linkLedger(
   names: string[],
   roster: RosterPerson[],
   maps: NameMap[],
-): { accounts: LinkedAccount[]; charges: LinkedCharge[]; unmatched: string[] } {
+): { accounts: LinkedAccount[]; charges: LinkedCharge[]; unmatched: string[]; profileIdByKey: Map<string, string> } {
   const pool = names.length > 0 ? names : [...accounts.map((row) => row.sheetName), ...charges.map((row) => row.sheetName)]
   const linked = linkNames(pool, roster, maps)
   return {
@@ -47,6 +48,7 @@ export function linkLedger(
       profileId: profileFor(charge.sheetKey, linked.profileIdByKey),
     })),
     unmatched: linked.unmatched,
+    profileIdByKey: linked.profileIdByKey,
   }
 }
 
@@ -58,9 +60,11 @@ export function replacePayload(
   maps: NameMap[],
   syncedAt: string,
   source: FinanceSource,
+  ledger: ParsedLedgerRow[] | null = null,
 ): Record<string, unknown> {
-  const linked = linkLedger(accounts, charges, names, roster, maps)
-  return {
+  const ledgerNames = ledger ? ledger.map((row) => row.sheetName) : []
+  const linked = linkLedger(accounts, charges, [...names, ...ledgerNames], roster, maps)
+  const payload: Record<string, unknown> = {
     mode: 'replace',
     synced_at: syncedAt,
     sync_source: source,
@@ -80,6 +84,8 @@ export function replacePayload(
       game_charges_total_cents: account.gameChargesTotalCents,
       balance_due_cents: account.balanceDueCents,
       payment_notes: account.paymentNotes,
+      sheet_credit_cents: account.sheetCreditCents,
+      manual_credit_cents: account.manualCreditCents,
     })),
     charges: linked.charges.map((charge) => ({
       sheet_key: charge.sheetKey,
@@ -96,6 +102,25 @@ export function replacePayload(
       recon_status: charge.reconStatus,
     })),
   }
+  if (ledger) {
+    payload.ledger = ledger.map((row) => ({
+      sheet_key: row.sheetKey,
+      sheet_name: row.sheetName,
+      profile_id: profileFor(row.sheetKey, linked.profileIdByKey),
+      sheet_row: row.sheetRow,
+      game_date: row.gameDate,
+      team: row.team,
+      game_no: row.gameNo,
+      ground: row.ground,
+      dues_cents: row.duesCents,
+      paid_cents: row.paidCents,
+      unsettled_cents: row.unsettledCents,
+      status: row.status,
+      memo: row.memo,
+      source: row.source,
+    }))
+  }
+  return payload
 }
 
 export type StoredName = {
@@ -108,8 +133,10 @@ export function relinkPayload(
   charges: StoredName[],
   roster: RosterPerson[],
   maps: NameMap[],
+  ledger: StoredName[] | null = null,
 ): Record<string, unknown> {
-  const names = [...accounts.map((row) => row.sheetName), ...charges.map((row) => row.sheetName)]
+  const ledgerNames = ledger ? ledger.map((row) => row.sheetName) : []
+  const names = [...accounts.map((row) => row.sheetName), ...charges.map((row) => row.sheetName), ...ledgerNames]
   const linked = linkNames(names, roster, maps)
   const once = (rows: StoredName[]) => {
     const seen = new Set<string>()
@@ -124,11 +151,13 @@ export function relinkPayload(
     }
     return links
   }
-  return {
+  const payload: Record<string, unknown> = {
     accounts: once(accounts),
     charges: once(charges),
     unmatched_names: linked.unmatched,
   }
+  if (ledger) payload.ledger = once(ledger)
+  return payload
 }
 
 export function sheetReadBody(secret: string): string {

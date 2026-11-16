@@ -100,7 +100,7 @@ SQL lives in `supabase/migrations`. Files through the invite workflow are alread
 
 Phase 3 dues live in `supabase/migrations/20261106010000_phase3_dues.sql`. Amounts are USD cents. That in-app ledger is a scratch pad. My dues reads the winter finance sheet. Splitwise stays on the Dues page as a second copy, with Venmo pay links. Sheet setup is in [docs/finance-sheet.md](docs/finance-sheet.md). Splitwise setup is in [docs/splitwise-venmo.md](docs/splitwise-venmo.md).
 
-A player's own page is `https://cheetahs-club.pages.dev/dues`. A link for one member is `https://cheetahs-club.pages.dev/dues/<profile-uuid>`. Both require sign-in. A player only sees their own rows. Captains and admins can open another member's id. Apply `supabase/migrations/20261114211000_sheet_dues.sql` before deploying:
+A player's own page is `https://cheetahs-club.pages.dev/dues`. A link for one member is `https://cheetahs-club.pages.dev/dues/<profile-uuid>`. Both require sign-in. A player only sees their own rows. Captains and admins can open another member's id. Apply `supabase/migrations/20261114211000_sheet_dues.sql` and `supabase/migrations/20261116154636_game_dues_ledger.sql` before deploying:
 
 ```bash
 supabase functions deploy sync-finance-sheet --no-verify-jwt --project-ref lutcbvzunjcosncvdyke

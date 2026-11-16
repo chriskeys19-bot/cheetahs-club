@@ -1,13 +1,19 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { formatDateOnly } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
 import { sheetSyncedLabel, type SheetSyncSource } from '../lib/sheetDues.ts'
 import { splitwiseSyncSourceLabel } from '../lib/splitwiseSyncLabel.ts'
 import {
+  LEDGER_EXPENSE_LABEL,
   chargeGroupHeading,
+  compareLedgerExpenses,
   duesBalanceStat,
+  duesStatusLine,
+  ledgerDateLabel,
+  ledgerGameLabel,
+  ledgerPaymentStatusText,
   type ChargeGroup,
-  type DuesPaymentStanding,
+  type LedgerExpense,
   type LedgerLine,
   type PaymentTone,
   type PlayerLedger,
@@ -50,19 +56,69 @@ function standingClass(tone: PaymentTone): string {
   return 'tag tag-sentence'
 }
 
-function PaymentStanding({ standing, showName }: { standing: DuesPaymentStanding; showName: boolean }) {
+function DuesStandingLine({ ledger }: { ledger: PlayerLedger }) {
+  const line = duesStatusLine(ledger)
+  if (!line) return null
+  const parts: { key: string; node: ReactNode }[] = []
+  if (line.badge) {
+    parts.push({
+      key: 'badge',
+      node: <span className={standingClass(line.tone)}>{line.badge}</span>,
+    })
+  }
+  if (line.remainingLabel) parts.push({ key: 'remaining', node: <span>{line.remainingLabel}</span> })
+  if (line.creditLabel) parts.push({ key: 'credit', node: <span>{line.creditLabel}</span> })
   return (
-    <article className="info-card">
-      {showName ? <h3>{standing.sheetName}</h3> : null}
-      {standing.label ? (
-        <p className="tag-row">
-          <span className={standingClass(standing.tone)}>{standing.label}</span>
-          {standing.detail ? <span>{standing.detail}</span> : null}
-        </p>
-      ) : null}
-      {standing.balanceLine ? <p>{standing.balanceLine}</p> : null}
-      {standing.notes ? <p>Payment notes: {standing.notes}</p> : null}
-    </article>
+    <p className="dues-status">
+      {parts.map((part, index) => (
+        <span key={part.key} className="dues-status-item">
+          {index > 0 ? (
+            <span className="dues-status-sep" aria-hidden="true">
+              {' · '}
+            </span>
+          ) : null}
+          {part.node}
+        </span>
+      ))}
+    </p>
+  )
+}
+
+function ExpensesTable({ rows }: { rows: LedgerExpense[] }) {
+  const ordered = [...rows].sort(compareLedgerExpenses)
+  return (
+    <div className="ledger-block">
+      <h3>Expenses</h3>
+      <div className="ledger-scroll">
+        <table className="ledger-table">
+          <caption className="sr-only">Expenses</caption>
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Team</th>
+              <th scope="col">Game</th>
+              <th scope="col">Expense</th>
+              <th scope="col">Amount</th>
+              <th scope="col">Payment status</th>
+              <th scope="col">Memo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ordered.map((row) => (
+              <tr key={row.key}>
+                <th scope="row">{ledgerDateLabel(row.gameDate)}</th>
+                <td>{row.team ?? ''}</td>
+                <td>{ledgerGameLabel(row.gameNo, row.ground)}</td>
+                <td>{LEDGER_EXPENSE_LABEL}</td>
+                <td>{formatCents(row.duesCents)}</td>
+                <td>{ledgerPaymentStatusText(row.paidCents, row.unsettledCents)}</td>
+                <td className="ledger-memo">{row.memo ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -97,6 +153,7 @@ export function SheetDuesView({
   notice,
   memberName,
   ledger,
+  expenses = [],
   syncedAt,
   lastAttemptFailed,
   lastAttemptAt,
@@ -119,6 +176,7 @@ export function SheetDuesView({
   notice: string | null
   memberName: string | null
   ledger: PlayerLedger | null
+  expenses?: LedgerExpense[]
   syncedAt: string | null
   lastAttemptFailed: boolean
   lastAttemptAt: string | null
@@ -209,23 +267,11 @@ export function SheetDuesView({
               <strong>{duesBalanceStat(ledger.balanceDueCents).value}</strong>
             </li>
           </ul>
+          <DuesStandingLine ledger={ledger} />
           <p className="fine-print">
             This is the sheet total. A negative number is what you owe the club. A positive number is a credit.
           </p>
-          {ledger.standings.length > 0 ? (
-            <div className="card-list">
-              {ledger.standings.map((standing) => (
-                <PaymentStanding
-                  key={standing.sheetKey}
-                  standing={standing}
-                  showName={ledger.standings.length > 1}
-                />
-              ))}
-            </div>
-          ) : ledger.paymentNotes ? (
-            <p>Payment notes: {ledger.paymentNotes}</p>
-          ) : null}
-          {ledger.gapCents !== 0 ? (
+          {expenses.length === 0 && ledger.gapCents !== 0 ? (
             <p className="fine-print">
               The lines below and the sheet balance differ by {formatCents(Math.abs(ledger.gapCents))}. The balance due
               above is the sheet total.
@@ -255,13 +301,16 @@ export function SheetDuesView({
               </ul>
             </article>
           ) : null}
-          {ledger.groups.length > 0 ? (
+          {expenses.length > 0 ? (
+            <ExpensesTable rows={expenses} />
+          ) : ledger.groups.length > 0 ? (
             <div className="card-list">
               {ledger.groups.map((group) => (
                 <GroupCard key={group.key} group={group} />
               ))}
             </div>
           ) : null}
+          {ledger.paymentNotes ? <p className="fine-print dues-notes">Payment notes: {ledger.paymentNotes}</p> : null}
         </>
       ) : null}
       {duesLink ? (

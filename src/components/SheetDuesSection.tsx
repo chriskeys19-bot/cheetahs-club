@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buildPlayerLedger, duesUrl, zelleMemo } from '../lib/sheetLedger.ts'
+import { buildPlayerLedger, duesUrl, zelleMemo, type LedgerExpense } from '../lib/sheetLedger.ts'
 import { loadSheetMember, syncFinanceSheet, type SheetMemberDesk } from '../lib/sheetDues.ts'
 import { SheetDuesView } from './SheetDuesView.tsx'
 
@@ -12,6 +12,7 @@ const emptyDesk: SheetMemberDesk = {
   status: null,
   accounts: [],
   charges: [],
+  ledgerRows: [],
   memo: null,
   roster: [],
 }
@@ -57,6 +58,18 @@ export function SheetDuesSection({
   const rosterName = desk.roster.find((row) => row.id === memberId)?.fullName ?? null
   const memberName = viewingSelf ? selfName : rosterName
   const ledger = loading || error ? null : buildPlayerLedger(desk.accounts, desk.charges)
+  const expenses: LedgerExpense[] = desk.ledgerRows.map((row) => ({
+    key: row.id,
+    sheetRow: row.sheetRow,
+    gameDate: row.gameDate,
+    team: row.team,
+    gameNo: row.gameNo,
+    ground: row.ground,
+    duesCents: row.duesCents,
+    paidCents: row.paidCents,
+    unsettledCents: row.unsettledCents,
+    memo: row.memo,
+  }))
   const origin = typeof window === 'undefined' ? 'https://cheetahs-club.pages.dev' : window.location.origin
 
   async function onRefresh() {
@@ -82,6 +95,7 @@ export function SheetDuesSection({
       notice={notice}
       memberName={memberName}
       ledger={ledger}
+      expenses={expenses}
       syncedAt={desk.meta?.syncedAt ?? null}
       lastAttemptFailed={desk.meta?.lastAttemptFailed ?? false}
       lastAttemptAt={desk.meta?.lastAttemptAt ?? null}
