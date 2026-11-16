@@ -2289,13 +2289,47 @@ div.record-select {
   margin: 0;
 }
 
-.ledger-scroll {
-  max-width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+.dues-rows {
+  position: relative;
+  min-width: 0;
+}
+
+.dues-rows-framed {
   border: 1px solid var(--color-border);
   border-radius: 14px;
   background: var(--color-surface-raised);
+}
+
+.dues-rows-scroll {
+  max-width: 100%;
+  max-height: 280px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.dues-rows-framed .dues-rows-scroll {
+  border-radius: 14px;
+}
+
+@media (min-width: 768px) {
+  .dues-rows-scroll {
+    max-height: 320px;
+  }
+}
+
+.dues-rows-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36px;
+  pointer-events: none;
+  border-radius: 0 0 13px 13px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--color-primary) 16%, var(--color-surface-raised))
+  );
 }
 
 .ledger-table {
@@ -2317,6 +2351,9 @@ div.record-select {
 }
 
 .ledger-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   font-family: var(--display);
   font-size: 0.85rem;
   font-weight: 700;
@@ -2335,7 +2372,7 @@ div.record-select {
 }
 
 .ledger-table thead th:first-child {
-  z-index: 2;
+  z-index: 3;
 }
 
 .ledger-table tbody th {
@@ -2349,8 +2386,19 @@ div.record-select {
 
 .ledger-memo {
   white-space: normal;
-  min-width: 12rem;
-  max-width: 22rem;
+  min-width: 14rem;
+  max-width: 24rem;
+}
+
+.ledger-memo-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.ledger-memo-line .button {
+  flex: 0 0 auto;
 }
 
 .pick-list {

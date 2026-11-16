@@ -568,6 +568,16 @@ export function parseLedgerGrid(values: unknown[][], startRow = 3): ParsedLedger
   return rows
 }
 
+/**
+ * The memo for one game row. A repeated sheet memo stays on every row that has it.
+ * Blank, missing, and whitespace-only cells stay blank. This does not borrow the account note.
+ */
+export function expenseMemoText(memo: string | null | undefined): string | null {
+  if (typeof memo !== 'string') return null
+  const text = memo.replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim()
+  return text.length > 0 ? text : null
+}
+
 /** Paid when nothing is unsettled. Otherwise the sheet's allocated paid and unsettled, not a new split. */
 export function ledgerPaymentStatusText(paidCents: number, unsettledCents: number): string {
   const paid = Number.isFinite(paidCents) ? Math.max(0, Math.round(paidCents)) : 0

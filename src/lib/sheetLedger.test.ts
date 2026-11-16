@@ -30,6 +30,7 @@ import {
   duesPaymentStanding,
   duesStatusLine,
   duesPath,
+  expenseMemoText,
   ledgerDateLabel,
   ledgerGameLabel,
   ledgerPaymentStatusText,
@@ -622,6 +623,24 @@ test('Zelle memos are one uppercase string and the Srivatsans keep distinct toke
   assert.equal(duesPath(ANMOL), `/dues/${ANMOL}`)
   assert.equal(duesUrl('https://cheetahs-club.pages.dev/', ANMOL), `https://cheetahs-club.pages.dev/dues/${ANMOL}`)
   assert.equal(duesUrl('https://cheetahs-club.pages.dev', null), 'https://cheetahs-club.pages.dev/dues')
+})
+
+test('a repeated ledger memo stays on every game, and a blank memo stays blank', () => {
+  const shared = '31631983768'
+  const rows = [
+    { memo: shared },
+    { memo: shared },
+    { memo: `  ${shared}  ` },
+    { memo: null },
+    { memo: '' },
+    { memo: '   ' },
+  ]
+  assert.deepEqual(
+    rows.map((row) => expenseMemoText(row.memo)),
+    [shared, shared, shared, null, null, null],
+  )
+  assert.equal(expenseMemoText(null), null)
+  assert.equal(expenseMemoText(undefined), null)
 })
 
 test('game dues ledger keeps the sheet allocation and skips blank rows', () => {

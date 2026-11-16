@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { formatDateOnly } from '../lib/format.ts'
 import { formatCents } from '../lib/money.ts'
 import { sheetSyncedLabel, type SheetSyncSource } from '../lib/sheetDues.ts'
@@ -9,6 +9,7 @@ import {
   compareLedgerExpenses,
   duesBalanceStat,
   duesStatusLine,
+  expenseMemoText,
   ledgerDateLabel,
   ledgerGameLabel,
   ledgerPaymentStatusText,
@@ -84,12 +85,58 @@ function DuesStandingLine({ ledger }: { ledger: PlayerLedger }) {
   )
 }
 
+function GameRows({ children, framed = false }: { children: ReactNode; framed?: boolean }) {
+  const scroller = useRef<HTMLDivElement>(null)
+  const [moreBelow, setMoreBelow] = useState(false)
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    const update = () => {
+      setMoreBelow(el.scrollHeight - el.clientHeight - el.scrollTop > 8)
+    }
+    update()
+    el.addEventListener('scroll', update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => {
+      el.removeEventListener('scroll', update)
+      observer.disconnect()
+    }
+  }, [])
+  return (
+    <div className={framed ? 'dues-rows dues-rows-framed' : 'dues-rows'}>
+      <div ref={scroller} className="dues-rows-scroll">
+        {children}
+      </div>
+      {moreBelow ? <div className="dues-rows-fade" aria-hidden="true" /> : null}
+    </div>
+  )
+}
+
+function MemoCell({ memo }: { memo: string | null }) {
+  const text = expenseMemoText(memo)
+  const copy = useCopy(text ?? '')
+  return (
+    <td className="ledger-memo">
+      {text ? (
+        <span className="ledger-memo-line">
+          <span>{text}</span>
+          <button type="button" className="button button-quiet" onClick={copy.onCopy}>
+            {copy.label}
+          </button>
+        </span>
+      ) : null}
+    </td>
+  )
+}
+
 function ExpensesTable({ rows }: { rows: LedgerExpense[] }) {
   const ordered = [...rows].sort(compareLedgerExpenses)
   return (
     <div className="ledger-block">
       <h3>Expenses</h3>
-      <div className="ledger-scroll">
+      <GameRows framed>
         <table className="ledger-table">
           <caption className="sr-only">Expenses</caption>
           <thead>
@@ -112,12 +159,12 @@ function ExpensesTable({ rows }: { rows: LedgerExpense[] }) {
                 <td>{LEDGER_EXPENSE_LABEL}</td>
                 <td>{formatCents(row.duesCents)}</td>
                 <td>{ledgerPaymentStatusText(row.paidCents, row.unsettledCents)}</td>
-                <td className="ledger-memo">{row.memo ?? ''}</td>
+                <MemoCell memo={row.memo} />
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      </GameRows>
     </div>
   )
 }
@@ -304,11 +351,13 @@ export function SheetDuesView({
           {expenses.length > 0 ? (
             <ExpensesTable rows={expenses} />
           ) : ledger.groups.length > 0 ? (
-            <div className="card-list">
-              {ledger.groups.map((group) => (
-                <GroupCard key={group.key} group={group} />
-              ))}
-            </div>
+            <GameRows>
+              <div className="card-list">
+                {ledger.groups.map((group) => (
+                  <GroupCard key={group.key} group={group} />
+                ))}
+              </div>
+            </GameRows>
           ) : null}
           {ledger.paymentNotes ? <p className="fine-print dues-notes">Payment notes: {ledger.paymentNotes}</p> : null}
         </>
