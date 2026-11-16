@@ -1,5 +1,5 @@
 import { SheetDuesView } from '../components/SheetDuesView.tsx'
-import { buildPlayerLedger, zelleMemo, type SheetAccount, type SheetCharge } from '../lib/sheetLedger.ts'
+import { buildPlayerLedger, zelleMemo, type LedgerExpense, type SheetAccount, type SheetCharge } from '../lib/sheetLedger.ts'
 
 function account(patch: Partial<SheetAccount> & Pick<SheetAccount, 'sheetName' | 'balanceDueCents'>): SheetAccount {
   return {
@@ -16,6 +16,8 @@ function account(patch: Partial<SheetAccount> & Pick<SheetAccount, 'sheetName' |
     receivedTotalCents: 0,
     gameChargesTotalCents: null,
     paymentNotes: null,
+    sheetCreditCents: 0,
+    manualCreditCents: 0,
     ...patch,
   }
 }
@@ -56,6 +58,42 @@ const owed = buildPlayerLedger(
       chargeKind: 'water',
       gameLabel: 'Game #1',
       chargeDate: '2026-01-11',
+    }),
+    charge({
+      sheetRow: 8,
+      amountCents: 3500,
+      chargeType: 'Game #2',
+      chargeKind: 'dues',
+      gameLabel: 'Game #2',
+      chargeDate: '2026-02-08',
+      ground: 'Birch Grove',
+    }),
+    charge({
+      sheetRow: 12,
+      amountCents: 3500,
+      chargeType: 'Game #3',
+      chargeKind: 'dues',
+      gameLabel: 'Game #3',
+      chargeDate: '2026-02-15',
+      ground: 'Fremont Central Park',
+    }),
+    charge({
+      sheetRow: 16,
+      amountCents: 3500,
+      chargeType: 'Game #4',
+      chargeKind: 'dues',
+      gameLabel: 'Game #4',
+      chargeDate: '2026-02-22',
+      ground: 'Milpitas',
+    }),
+    charge({
+      sheetRow: 20,
+      amountCents: 3500,
+      chargeType: 'Game #5',
+      chargeKind: 'dues',
+      gameLabel: 'Game #5',
+      chargeDate: '2026-03-01',
+      ground: 'Hayward',
     }),
   ],
 )
@@ -148,6 +186,111 @@ const rajesh = buildPlayerLedger(
   ],
 )
 
+const benLedger = buildPlayerLedger(
+  [
+    account({
+      sheetName: 'Ben Thomas',
+      clubStatus: 'PT',
+      receivedTotalCents: 6545,
+      balanceDueCents: -455,
+      sheetCreditCents: 45,
+      manualCreditCents: 0,
+      paymentNotes:
+        "Online transfer from 3083 pending 11/16 $35.45 – games (Ben's own payment). +$0.45 credit = water share under old split model; shown automatically in Credits Available (auto) O. Manual P = 0.",
+    }),
+  ],
+  [],
+)
+
+const SHARED_MEMO = '31631983768'
+
+const benExpenses: LedgerExpense[] = [
+  {
+    key: 'game-1',
+    sheetRow: 4,
+    gameDate: '2026-10-04',
+    team: 'Lions',
+    gameNo: 1,
+    ground: 'Hayward',
+    duesCents: 3000,
+    paidCents: 3000,
+    unsettledCents: 0,
+    memo: null,
+  },
+  {
+    key: 'game-2',
+    sheetRow: 6,
+    gameDate: '2026-10-11',
+    team: 'Alpha',
+    gameNo: 2,
+    ground: 'Birch Grove',
+    duesCents: 3500,
+    paidCents: 3500,
+    unsettledCents: 0,
+    memo: SHARED_MEMO,
+  },
+  {
+    key: 'game-3',
+    sheetRow: 8,
+    gameDate: '2026-10-18',
+    team: 'Alpha',
+    gameNo: 3,
+    ground: 'Milpitas',
+    duesCents: 3500,
+    paidCents: 3500,
+    unsettledCents: 0,
+    memo: SHARED_MEMO,
+  },
+  {
+    key: 'game-4',
+    sheetRow: 10,
+    gameDate: '2026-10-25',
+    team: 'Alpha',
+    gameNo: 4,
+    ground: 'Fremont Central Park',
+    duesCents: 3500,
+    paidCents: 0,
+    unsettledCents: 3500,
+    memo: SHARED_MEMO,
+  },
+  {
+    key: 'game-5',
+    sheetRow: 12,
+    gameDate: '2026-11-02',
+    team: 'Cheetahs',
+    gameNo: 5,
+    ground: 'Milpitas',
+    duesCents: 3500,
+    paidCents: 0,
+    unsettledCents: 3500,
+    memo: '   ',
+  },
+  {
+    key: 'game-6',
+    sheetRow: 14,
+    gameDate: '2026-11-08',
+    team: 'Cheetahs',
+    gameNo: 6,
+    ground: 'Birch Grove',
+    duesCents: 3500,
+    paidCents: 3500,
+    unsettledCents: 0,
+    memo: null,
+  },
+  {
+    key: 'game-7',
+    sheetRow: 16,
+    gameDate: '2026-11-14',
+    team: 'Cheetahs',
+    gameNo: 7,
+    ground: 'Fremont Central Park',
+    duesCents: 3500,
+    paidCents: 45,
+    unsettledCents: 3455,
+    memo: 'Online transfer from 3083 pending 11/16',
+  },
+]
+
 const synced = '2026-11-14T20:40:00.000Z'
 
 export function SheetDuesPreviewPage() {
@@ -158,6 +301,29 @@ export function SheetDuesPreviewPage() {
         <h1>Sheet dues states</h1>
         <p className="lede">Fixture data for the winter sheet. These rows are not from Supabase.</p>
       </header>
+      <SheetDuesView
+        loading={false}
+        error={null}
+        notice={null}
+        memberName="Ben Thomas"
+        ledger={benLedger}
+        expenses={benExpenses}
+        syncedAt={synced}
+        lastAttemptFailed={false}
+        lastAttemptAt={null}
+        syncSource="scheduled"
+        syncError={null}
+        zelleEmail="treasurercheetahscricket@gmail.com"
+        memo={zelleMemo('Ben Thomas', null, '1116')}
+        showSync={false}
+        refreshing={false}
+        refreshError={null}
+        onRefresh={null}
+        duesLink={null}
+        wrongLink={false}
+        invalidLink={false}
+        headingId="preview-ledger"
+      />
       <SheetDuesView
         loading={false}
         error={null}

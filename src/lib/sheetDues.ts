@@ -59,6 +59,24 @@ export type SheetMemo = {
   memoToken: string
 }
 
+export type SheetLedgerRow = {
+  id: string
+  sheetKey: string
+  sheetName: string
+  profileId: string | null
+  sheetRow: number
+  gameDate: string | null
+  team: string | null
+  gameNo: number | null
+  ground: string | null
+  duesCents: number
+  paidCents: number
+  unsettledCents: number
+  status: 'Paid' | 'Partial' | 'Open'
+  memo: string | null
+  source: string | null
+}
+
 export type SheetRosterRow = {
   id: string
   fullName: string | null
@@ -71,6 +89,7 @@ export type SheetMemberDesk = {
   status: SheetStatus | null
   accounts: SheetAccount[]
   charges: SheetCharge[]
+  ledgerRows: SheetLedgerRow[]
   memo: SheetMemo | null
   roster: SheetRosterRow[]
 }
@@ -86,7 +105,10 @@ export type SheetClubDesk = {
 }
 
 const ACCOUNT_COLUMNS =
-  'id, sheet_key, sheet_name, profile_id, club_status, club_fee_cents, club_fee_status, umpiring_fee_cents, umpiring_status, received_saro_cents, received_ben_cents, received_total_cents, game_charges_total_cents, balance_due_cents, payment_notes'
+  'id, sheet_key, sheet_name, profile_id, club_status, club_fee_cents, club_fee_status, umpiring_fee_cents, umpiring_status, received_saro_cents, received_ben_cents, received_total_cents, game_charges_total_cents, balance_due_cents, payment_notes, sheet_credit_cents, manual_credit_cents'
+
+const LEDGER_COLUMNS =
+  'id, sheet_key, sheet_name, profile_id, sheet_row, game_date, team, game_no, ground, dues_cents, paid_cents, unsettled_cents, status, memo, source'
 
 const CHARGE_COLUMNS =
   'id, sheet_key, sheet_name, profile_id, sheet_row, charge_date, charge_type, game_label, charge_kind, team, ground, amount_cents, recon_status'
@@ -108,6 +130,9 @@ function sheetError(message: string): string {
     lower.includes('finance_sheet') ||
     lower.includes('sheet_name_map') ||
     lower.includes('member_dues_memo')
+  if (missing && (lower.includes('sheet_ledger') || lower.includes('sheet_credit') || lower.includes('manual_credit'))) {
+    return 'The game dues ledger is not on the database yet. Apply supabase/migrations/20261116154636_game_dues_ledger.sql, then reload.'
+  }
   if (missing && names) {
     return 'Club sheet dues are not on the database yet. Apply supabase/migrations/20261114211000_sheet_dues.sql, then reload.'
   }
@@ -212,6 +237,8 @@ function parseAccount(value: unknown): SheetAccount | null {
     gameChargesTotalCents: games,
     balanceDueCents: balance,
     paymentNotes: textOrNull(row.payment_notes),
+    sheetCreditCents: parseCents(row.sheet_credit_cents) ?? 0,
+    manualCreditCents: parseCents(row.manual_credit_cents) ?? 0,
   }
 }
 
@@ -257,6 +284,64 @@ function parseCharge(value: unknown): SheetCharge | null {
     amountCents: amount,
     reconStatus: textOrNull(row.recon_status),
   }
+}
+
+const LEDGER_STATUSES = new Set(['Paid', 'Partial', 'Open'])
+
+function parseLedgerRow(value: unknown): SheetLedgerRow | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  const dues = parseCents(row.dues_cents)
+  const paid = parseCents(row.paid_cents)
+  const unsettled = parseCents(row.unsettled_cents)
+  const sheetRow = parseCents(row.sheet_row)
+  const gameNo = row.game_no == null ? null : parseCents(row.game_no)
+  if (
+    typeof row.id !== 'string' ||
+    typeof row.sheet_key !== 'string' ||
+    typeof row.sheet_name !== 'string' ||
+    typeof row.status !== 'string' ||
+    !LEDGER_STATUSES.has(row.status) ||
+    dues == null ||
+    paid == null ||
+    unsettled == null ||
+    sheetRow == null ||
+    (row.game_no != null && gameNo == null)
+  ) {
+    return null
+  }
+  return {
+    id: row.id,
+    sheetKey: row.sheet_key,
+    sheetName: row.sheet_name,
+    profileId: typeof row.profile_id === 'string' ? row.profile_id : null,
+    sheetRow,
+    gameDate: typeof row.game_date === 'string' ? row.game_date : null,
+    team: textOrNull(row.team),
+    gameNo,
+    ground: textOrNull(row.ground),
+    duesCents: dues,
+    paidCents: paid,
+    unsettledCents: unsettled,
+    status: row.status as SheetLedgerRow['status'],
+    memo: textOrNull(row.memo),
+    source: textOrNull(row.source),
+  }
+}
+
+function parseLedgerRows(value: unknown): SheetLedgerRow[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    const row = parseLedgerRow(item)
+    return row ? [row] : []
+  })
+}
+
+function missingLedgerTable(message: string | undefined): boolean {
+  if (!message) return false
+  const lower = message.toLowerCase()
+  const missing = lower.includes('schema cache') || lower.includes('could not find') || lower.includes('does not exist')
+  return missing && lower.includes('sheet_ledger')
 }
 
 function parseCharges(value: unknown): SheetCharge[] {
@@ -338,12 +423,13 @@ export async function loadSheetMember(input: {
     status: null,
     accounts: [],
     charges: [],
+    ledgerRows: [],
     memo: null,
     roster: [],
   }
   if (!supabase) return { desk: empty, error: 'Supabase is not configured.' }
   const client = supabase
-  const [settingsResult, metaResult, statusResult, accountResult, chargeResult, memoResult, rosterResult] =
+  const [settingsResult, metaResult, statusResult, accountResult, chargeResult, ledgerResult, memoResult, rosterResult] =
     await Promise.all([
       client.from('finance_dues_settings').select('zelle_email, reminder_mmdd').eq('id', 1).maybeSingle(),
       client.from('finance_sheet_meta').select('synced_at, sync_source, last_attempt_at, last_attempt_failed').eq('id', 1).maybeSingle(),
@@ -357,10 +443,18 @@ export async function loadSheetMember(input: {
         .eq('profile_id', input.memberId)
         .order('sheet_row', { ascending: true })
         .limit(500),
+      client
+        .from('sheet_ledger_rows')
+        .select(LEDGER_COLUMNS)
+        .eq('profile_id', input.memberId)
+        .order('game_date', { ascending: true, nullsFirst: false })
+        .order('sheet_row', { ascending: true })
+        .limit(500),
       client.from('member_dues_memo').select('profile_id, memo_token').eq('profile_id', input.memberId).maybeSingle(),
       input.staff ? client.rpc('dues_roster') : Promise.resolve({ data: [], error: null }),
     ])
   const memos = memoResult.data ? parseMemos([memoResult.data]) : []
+  const ledgerMissing = missingLedgerTable(ledgerResult.error?.message)
   return {
     desk: {
       settings: parseSettings(settingsResult.data),
@@ -368,6 +462,7 @@ export async function loadSheetMember(input: {
       status: parseStatus(statusResult.data),
       accounts: parseAccounts(accountResult.data),
       charges: parseCharges(chargeResult.data),
+      ledgerRows: ledgerMissing ? [] : parseLedgerRows(ledgerResult.data),
       memo: memos[0] ?? null,
       roster: parseRoster(rosterResult.data),
     },
@@ -377,6 +472,7 @@ export async function loadSheetMember(input: {
       statusResult.error?.message,
       accountResult.error?.message,
       chargeResult.error?.message,
+      ledgerMissing ? null : ledgerResult.error?.message,
       memoResult.error?.message,
       rosterResult.error?.message,
     ]),

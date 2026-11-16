@@ -27,6 +27,24 @@ export const DUES_RECEIVED_COL = 10
 export const DUES_GAMES_COL = 11
 export const DUES_BALANCE_COL = 12
 export const DUES_NOTES_COL = 13
+/** Club Dues column O. Automatic credit, including a credit that still shows when column M is negative. */
+export const DUES_CREDIT_COL = 14
+/** Club Dues column P. Manual credit added to column O. */
+export const DUES_MANUAL_CREDIT_COL = 15
+
+export const LEDGER_DATE_COL = 0
+export const LEDGER_TEAM_COL = 1
+export const LEDGER_GAME_COL = 2
+export const LEDGER_GROUND_COL = 3
+export const LEDGER_PLAYER_COL = 4
+export const LEDGER_DUES_COL = 5
+export const LEDGER_PAID_COL = 6
+export const LEDGER_UNSETTLED_COL = 7
+export const LEDGER_STATUS_COL = 8
+export const LEDGER_MEMO_COL = 9
+export const LEDGER_SOURCE_COL = 10
+
+export const LEDGER_EXPENSE_LABEL = 'Game dues'
 
 export const SPLIT_DATE_COL = 0
 export const SPLIT_TYPE_COL = 1
@@ -90,6 +108,7 @@ const MONTHS: Record<string, number> = {
 export type ChargeKind = 'dues' | 'water' | 'umpire' | 'other'
 export type LineStatus = 'Paid' | 'Unpaid'
 export type LedgerState = 'absent' | 'empty' | 'paid' | 'owed'
+export type LedgerRowStatus = 'Paid' | 'Partial' | 'Open'
 
 export type RosterPerson = {
   id: string
@@ -115,6 +134,40 @@ export type ParsedAccount = {
   gameChargesTotalCents: number | null
   balanceDueCents: number | null
   paymentNotes: string | null
+  /** Club Dues column O, in cents. Zero when the cell is blank. */
+  sheetCreditCents: number
+  /** Club Dues column P, in cents. Zero when the cell is blank. */
+  manualCreditCents: number
+}
+
+export type ParsedLedgerRow = {
+  sheetKey: string
+  sheetName: string
+  sheetRow: number
+  gameDate: string | null
+  team: string | null
+  gameNo: number | null
+  ground: string | null
+  duesCents: number
+  paidCents: number
+  unsettledCents: number
+  status: LedgerRowStatus
+  memo: string | null
+  source: string | null
+}
+
+/** One game-dues row on My dues. Payment status uses paidCents and unsettledCents as stored. */
+export type LedgerExpense = {
+  key: string
+  sheetRow: number
+  gameDate: string | null
+  team: string | null
+  gameNo: number | null
+  ground: string | null
+  duesCents: number
+  paidCents: number
+  unsettledCents: number
+  memo: string | null
 }
 
 export type ParsedCharge = {
@@ -188,8 +241,18 @@ export type PlayerLedger = {
   paymentNotes: string | null
   clubStatus: string | null
   standings: DuesPaymentStanding[]
+  /** Column O plus column P across the dues-tab rows. Omit on the page when this is not positive. */
+  combinedCreditCents: number
   /** Line remainder minus the sheet's unpaid amount. Zero when they agree. */
   gapCents: number
+}
+
+export type DuesStatusLine = {
+  badge: string | null
+  tone: PaymentTone
+  remainingLabel: string | null
+  creditLabel: string | null
+  text: string
 }
 
 export function normalizeName(value: string): string {
@@ -325,6 +388,8 @@ export function parseDuesGrid(values: unknown[][], startRow = 1): ParsedAccount[
       gameChargesTotalCents: parseSheetMoney(cell(row, DUES_GAMES_COL)),
       balanceDueCents: parseSheetMoney(cell(row, DUES_BALANCE_COL)),
       paymentNotes: sheetText(cell(row, DUES_NOTES_COL), 500),
+      sheetCreditCents: parseSheetMoney(cell(row, DUES_CREDIT_COL)) ?? 0,
+      manualCreditCents: parseSheetMoney(cell(row, DUES_MANUAL_CREDIT_COL)) ?? 0,
     }
     const prev = byKey.get(sheetKey)
     if (!prev) {
@@ -344,6 +409,8 @@ export function parseDuesGrid(values: unknown[][], startRow = 1): ParsedAccount[
       gameChargesTotalCents: sumNullable(prev.gameChargesTotalCents, next.gameChargesTotalCents),
       balanceDueCents: sumNullable(prev.balanceDueCents, next.balanceDueCents),
       paymentNotes: joinNotes(prev.paymentNotes, next.paymentNotes),
+      sheetCreditCents: prev.sheetCreditCents + next.sheetCreditCents,
+      manualCreditCents: prev.manualCreditCents + next.manualCreditCents,
     })
   })
   return [...byKey.values()]
@@ -419,6 +486,139 @@ export function parseSplitsGrid(values: unknown[][], startRow = 2): ParsedCharge
   return charges
 }
 
+function nonNegativeCents(value: number | null): number {
+  if (value == null || value < 0) return 0
+  return value
+}
+
+export function parseGameNo(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const game = Math.trunc(value)
+    if (game < 0 || game > 10000 || Math.abs(value - game) > 1e-6) return null
+    return game
+  }
+  if (typeof value !== 'string') return null
+  const match = /^(?:game\s*#?\s*)?(\d+)(?:\.0+)?$/i.exec(value.trim())
+  if (!match) return null
+  const game = Number(match[1])
+  if (!Number.isInteger(game) || game > 10000) return null
+  return game
+}
+
+export function ledgerRowStatus(raw: string | null, paidCents: number, unsettledCents: number): LedgerRowStatus {
+  const compact = (raw ?? '').replace(/\s+/g, ' ').trim().toLowerCase()
+  if (compact === 'paid') return 'Paid'
+  if (compact === 'partial') return 'Partial'
+  if (compact === 'open') return 'Open'
+  if (unsettledCents === 0) return 'Paid'
+  if (paidCents > 0) return 'Partial'
+  return 'Open'
+}
+
+function rowIsBlank(row: unknown): boolean {
+  if (!Array.isArray(row) || row.length === 0) return true
+  return row.every((value) => sheetText(value, 500) == null)
+}
+
+/**
+ * Game Dues Ledger. Row 3 is the header when startRow is 3, and data starts
+ * on row 4. Blank rows are skipped. Money cells may be numbers or formatted
+ * strings. Paid and unsettled are stored as written; nothing is allocated here.
+ */
+export function parseLedgerGrid(values: unknown[][], startRow = 3): ParsedLedgerRow[] {
+  if (!Number.isInteger(startRow) || startRow < 1) return []
+  const rows: ParsedLedgerRow[] = []
+  const seenRows = new Set<number>()
+  values.forEach((row, index) => {
+    const sheetRow = startRow + index
+    if (sheetRow < 4 || seenRows.has(sheetRow) || rowIsBlank(row)) return
+    const dateText = sheetText(cell(row, LEDGER_DATE_COL), 80)
+    if (dateText && normalizeName(dateText) === 'date') return
+    const sheetName = sheetText(cell(row, LEDGER_PLAYER_COL), 120)
+    if (!sheetName || isHeaderName(sheetName) || isTotalLabel(sheetName) || isTotalLabel(dateText)) return
+    const sheetKey = normalizeName(sheetName)
+    if (!sheetKey) return
+    const dues = parseSheetMoney(cell(row, LEDGER_DUES_COL))
+    const paid = parseSheetMoney(cell(row, LEDGER_PAID_COL))
+    const unsettled = parseSheetMoney(cell(row, LEDGER_UNSETTLED_COL))
+    const gameNo = parseGameNo(cell(row, LEDGER_GAME_COL))
+    const gameDate = parseSheetDate(dateText)
+    if (dues == null && paid == null && unsettled == null && !gameDate && gameNo == null) return
+    const duesCents = nonNegativeCents(dues)
+    const paidCents = nonNegativeCents(paid)
+    const unsettledCents = nonNegativeCents(unsettled)
+    if (duesCents === 0 && paidCents === 0 && unsettledCents === 0 && !gameDate && gameNo == null) return
+    seenRows.add(sheetRow)
+    rows.push({
+      sheetKey,
+      sheetName,
+      sheetRow,
+      gameDate,
+      team: sheetText(cell(row, LEDGER_TEAM_COL), 80),
+      gameNo,
+      ground: sheetText(cell(row, LEDGER_GROUND_COL), 160),
+      duesCents,
+      paidCents,
+      unsettledCents,
+      status: ledgerRowStatus(sheetText(cell(row, LEDGER_STATUS_COL), 40), paidCents, unsettledCents),
+      memo: sheetText(cell(row, LEDGER_MEMO_COL), 500),
+      source: sheetText(cell(row, LEDGER_SOURCE_COL), 120),
+    })
+  })
+  return rows
+}
+
+/**
+ * The memo for one game row. A repeated sheet memo stays on every row that has it.
+ * Blank, missing, and whitespace-only cells stay blank. This does not borrow the account note.
+ */
+export function expenseMemoText(memo: string | null | undefined): string | null {
+  if (typeof memo !== 'string') return null
+  const text = memo.replace(/[\u00a0\u202f]/g, ' ').replace(/\s+/g, ' ').trim()
+  return text.length > 0 ? text : null
+}
+
+/** Paid when nothing is unsettled. Otherwise the sheet's allocated paid and unsettled, not a new split. */
+export function ledgerPaymentStatusText(paidCents: number, unsettledCents: number): string {
+  const paid = Number.isFinite(paidCents) ? Math.max(0, Math.round(paidCents)) : 0
+  const unsettled = Number.isFinite(unsettledCents) ? Math.max(0, Math.round(unsettledCents)) : 0
+  if (unsettled === 0) return 'Paid'
+  if (paid === 0) return `${formatCents(unsettled)} unsettled`
+  return `${formatCents(paid)} paid, ${formatCents(unsettled)} unsettled`
+}
+
+const LEDGER_DATE = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'UTC',
+  month: 'short',
+  day: 'numeric',
+})
+
+export function ledgerDateLabel(isoDate: string | null): string {
+  if (!isoDate) return ''
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate)
+  if (!match) return isoDate
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  if (Number.isNaN(utc.getTime())) return isoDate
+  return LEDGER_DATE.format(utc)
+}
+
+export function ledgerGameLabel(gameNo: number | null, ground: string | null): string {
+  const game = gameNo != null ? `Game #${gameNo}` : ''
+  const place = ground?.trim() ?? ''
+  if (game && place) return `${game}, ${place}`
+  return game || place
+}
+
+export function compareLedgerExpenses(
+  left: Pick<LedgerExpense, 'gameDate' | 'sheetRow'>,
+  right: Pick<LedgerExpense, 'gameDate' | 'sheetRow'>,
+): number {
+  const leftDate = left.gameDate ?? '9999-99-99'
+  const rightDate = right.gameDate ?? '9999-99-99'
+  if (leftDate !== rightDate) return leftDate < rightDate ? -1 : 1
+  return left.sheetRow - right.sheetRow
+}
+
 export function shellAccount(sheetKey: string, sheetName: string): ParsedAccount {
   return {
     sheetKey,
@@ -434,6 +634,8 @@ export function shellAccount(sheetKey: string, sheetName: string): ParsedAccount
     gameChargesTotalCents: null,
     balanceDueCents: null,
     paymentNotes: null,
+    sheetCreditCents: 0,
+    manualCreditCents: 0,
   }
 }
 
@@ -489,7 +691,7 @@ export function parseFinanceGrid(grid: FinanceGrid): {
 export function interpretFinanceSheet(
   status: number,
   body: unknown,
-): { accounts: ParsedAccount[]; charges: ParsedCharge[]; names: string[] } | { error: string } {
+): { accounts: ParsedAccount[]; charges: ParsedCharge[]; names: string[]; ledgerRows: ParsedLedgerRow[] | null } | { error: string } {
   if (status < 200 || status >= 300) {
     const record = asRecord(body)
     const message = typeof record?.error === 'string' ? record.error : `The sheet returned ${status}.`
@@ -519,7 +721,17 @@ export function interpretFinanceSheet(
   if (parsed.accounts.length === 0 && parsed.charges.length === 0) {
     return { error: 'The sheet did not include any player rows.' }
   }
-  return parsed
+  let ledgerRows: ParsedLedgerRow[] | null = null
+  if ('ledger' in record && record.ledger != null) {
+    const ledger = asRecord(record.ledger)
+    const ledgerValues = asGrid(ledger?.values)
+    if (ledgerValues) {
+      const ledgerStart = typeof ledger?.startRow === 'number' ? ledger.startRow : 3
+      ledgerRows = parseLedgerGrid(ledgerValues, ledgerStart)
+      for (const row of ledgerRows) parsed.names.push(row.sheetName)
+    }
+  }
+  return { ...parsed, ledgerRows }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -689,7 +901,9 @@ export function isSplitsOnlyAccount(account: ParsedAccount): boolean {
     account.clubStatus == null &&
     account.clubFeeStatus == null &&
     account.umpiringStatus == null &&
-    account.paymentNotes == null
+    account.paymentNotes == null &&
+    account.sheetCreditCents === 0 &&
+    account.manualCreditCents === 0
   )
 }
 
@@ -804,6 +1018,7 @@ function absentLedger(): PlayerLedger {
     paymentNotes: null,
     clubStatus: null,
     standings: [],
+    combinedCreditCents: 0,
     gapCents: 0,
   }
 }
@@ -902,8 +1117,13 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
   const appliedTotal = lines.reduce((sum, line) => sum + line.appliedCents, 0)
   const owedCents = balanceDueCents < 0 ? -balanceDueCents : 0
   const creditCents = balanceDueCents > 0 ? balanceDueCents : 0
+  const combinedCreditCents = money.reduce(
+    (sum, account) => sum + account.sheetCreditCents + account.manualCreditCents,
+    0,
+  )
   const standings = duesPaymentStandings(money)
-  const hasActivity = lines.length > 0 || received !== 0 || balanceDueCents !== 0 || standings.length > 0
+  const hasActivity =
+    lines.length > 0 || received !== 0 || balanceDueCents !== 0 || standings.length > 0 || combinedCreditCents !== 0
   const state: LedgerState = !hasActivity ? 'empty' : balanceDueCents < 0 ? 'owed' : 'paid'
 
   return {
@@ -913,6 +1133,7 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
     balanceDueCents,
     owedCents,
     creditCents,
+    combinedCreditCents,
     lines,
     groups: grouped,
     paymentNotes: notes.length > 0 ? notes.join(' · ').slice(0, 500) : null,
@@ -920,6 +1141,31 @@ export function buildPlayerLedger(accounts: SheetAccount[], charges: SheetCharge
     standings,
     gapCents: lineTotal - appliedTotal - owedCents,
   }
+}
+
+/** Status badge, amount still owed, and column O plus column P. Credit is omitted at zero. */
+export function duesStatusLine(
+  ledger: Pick<PlayerLedger, 'balanceDueCents' | 'totalPaidCents' | 'state' | 'combinedCreditCents'>,
+): DuesStatusLine | null {
+  const remainingCents = ledger.balanceDueCents < 0 ? -ledger.balanceDueCents : 0
+  const creditCents = ledger.combinedCreditCents
+  let badge: string | null = null
+  let tone: PaymentTone = 'neutral'
+  if (remainingCents > 0 && ledger.totalPaidCents > 0) {
+    badge = 'Partially paid'
+    tone = 'pending'
+  } else if (remainingCents > 0) {
+    badge = 'Unpaid'
+    tone = 'pending'
+  } else if (ledger.state === 'paid') {
+    badge = 'Paid'
+    tone = 'paid'
+  }
+  const remainingLabel = remainingCents > 0 ? `${formatCents(remainingCents)} remaining` : null
+  const creditLabel = creditCents > 0 ? `Credit +${formatCents(creditCents)}` : null
+  const text = [badge, remainingLabel, creditLabel].filter((part): part is string => Boolean(part)).join(' · ')
+  if (!text) return null
+  return { badge, tone, remainingLabel, creditLabel, text }
 }
 
 export function chargeGroupHeading(group: ChargeGroup): string {

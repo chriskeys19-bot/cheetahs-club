@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseLedgerGrid } from '../../../src/lib/sheetLedger.ts'
 import { readFinanceRequest, relinkPayload, replacePayload, sheetReadBody } from './logic.ts'
 
 const ANMOL = '11111111-1111-4111-8111-111111111111'
@@ -35,6 +36,8 @@ test('a replace payload links aliases and leaves the two Srivatsans unmatched', 
         gameChargesTotalCents: null,
         balanceDueCents: -10000,
         paymentNotes: null,
+        sheetCreditCents: 0,
+        manualCreditCents: 0,
       },
     ],
     [],
@@ -72,4 +75,42 @@ test('an admin map is what a relink applies', () => {
   assert.equal(accounts[0]?.profile_id, BEN)
   assert.equal(charges[0]?.profile_id, BEN)
   assert.deepEqual(payload.unmatched_names, [])
+})
+
+test('a ledger row uses the same name match, and an old sheet omits the ledger', () => {
+  const rows = parseLedgerGrid(
+    [
+      ['Date', 'Team', 'Game #', 'Ground', 'Player', 'Dues', 'Allocated paid', 'Unsettled', 'Status', 'Memo', 'Source'],
+      ['2026-11-14', 'Cheetahs', 3, 'Fremont Central Park', 'Anamol', 35, 0.45, 34.55, 'Partial', 'water share', 'GC Splits!N9'],
+      ['2026-11-14', 'Cheetahs', 3, 'Fremont Central Park', 'Ben', 35, 35, 0, 'Paid', '', 'GC Splits!N10'],
+      ['2026-11-14', 'Cheetahs', 3, 'Fremont Central Park', 'Cheetahs Club', 35, 0, 35, 'Open', '', 'GC Splits!N11'],
+    ],
+    3,
+  )
+  const payload = replacePayload(
+    [],
+    [],
+    [],
+    [
+      { id: ANMOL, fullName: 'Anmol Sharma' },
+      { id: BEN, fullName: 'Ben Thomas' },
+      { id: 'club', fullName: 'Cheetahs Club' },
+    ],
+    [{ sheetKey: 'ben', profileId: BEN }],
+    '2026-11-16T14:40:00.000Z',
+    'manual',
+    rows,
+  )
+  const ledger = payload.ledger as { sheet_name: string; profile_id: string | null; paid_cents: number; unsettled_cents: number; memo: string | null }[]
+  assert.equal(ledger.length, 3)
+  assert.equal(ledger.find((row) => row.sheet_name === 'Anamol')?.profile_id, ANMOL)
+  assert.equal(ledger.find((row) => row.sheet_name === 'Ben')?.profile_id, BEN)
+  assert.equal(ledger.find((row) => row.sheet_name === 'Cheetahs Club')?.profile_id, null)
+  assert.equal(ledger[0]?.paid_cents, 45)
+  assert.equal(ledger[0]?.unsettled_cents, 3455)
+  assert.equal(ledger[0]?.memo, 'water share')
+  assert.deepEqual(payload.unmatched_names, ['Cheetahs Club'])
+
+  const withoutLedger = replacePayload([], [], ['Anamol'], [{ id: ANMOL, fullName: 'Anmol Sharma' }], [], '2026-11-16T14:40:00.000Z', 'scheduled', null)
+  assert.equal('ledger' in withoutLedger, false)
 })

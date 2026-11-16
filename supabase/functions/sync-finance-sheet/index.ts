@@ -160,7 +160,7 @@ async function readSheet(url: string, secret: string): Promise<{ status: number;
     })
   }
   const text = await response.text()
-  if (text.length > 2_000_000) return { status: 502, json: { error: 'The sheet response was too large.' } }
+  if (text.length > 4_000_000) return { status: 502, json: { error: 'The sheet response was too large.' } }
   try {
     return { status: response.status, json: text.trim() ? JSON.parse(text) : null }
   } catch {
@@ -168,12 +168,21 @@ async function readSheet(url: string, secret: string): Promise<{ status: number;
   }
 }
 
+function missingLedgerTable(message: string): boolean {
+  const lower = message.toLowerCase()
+  const missing = lower.includes('does not exist') || lower.includes('schema cache') || lower.includes('could not find')
+  return missing && lower.includes('sheet_ledger')
+}
+
 async function relink(admin: AdminClient, people: { roster: RosterPerson[]; maps: NameMap[] }): Promise<Response | Record<string, unknown>> {
-  const [accounts, charges] = await Promise.all([
+  const [accounts, charges, ledgerRows] = await Promise.all([
     admin.from('sheet_dues_accounts').select('sheet_key, sheet_name').limit(300),
     admin.from('sheet_dues_charges').select('sheet_key, sheet_name').limit(8000),
+    admin.from('sheet_ledger_rows').select('sheet_key, sheet_name').limit(2500),
   ])
   if (accounts.error || charges.error) return { error: 'Could not read the stored sheet.' }
+  const ledgerMissing = ledgerRows.error ? missingLedgerTable(ledgerRows.error.message) : false
+  if (ledgerRows.error && !ledgerMissing) return { error: 'Could not read the stored sheet.' }
   const names = (rows: unknown) => {
     if (!Array.isArray(rows)) return []
     const parsed: { sheetKey: string; sheetName: string }[] = []
@@ -185,7 +194,13 @@ async function relink(admin: AdminClient, people: { roster: RosterPerson[]; maps
     }
     return parsed
   }
-  const payload = relinkPayload(names(accounts.data), names(charges.data), people.roster, people.maps)
+  const payload = relinkPayload(
+    names(accounts.data),
+    names(charges.data),
+    people.roster,
+    people.maps,
+    ledgerMissing ? null : names(ledgerRows.data),
+  )
   const result = await admin.rpc('relink_finance_sheet', { payload })
   if (result.error) return { error: safeError(result.error.message, '') }
   return { ok: true, rematch: true, ...(result.data && typeof result.data === 'object' ? result.data : {}) }
@@ -255,6 +270,7 @@ Deno.serve(async (req: Request) => {
     people.maps,
     new Date().toISOString(),
     auth,
+    ledger.ledgerRows,
   )
   const saved = await admin.rpc('replace_finance_sheet', { payload })
   if (saved.error) {
