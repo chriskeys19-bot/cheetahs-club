@@ -136,6 +136,10 @@ export function LoginPage() {
             New to the club? <Link to="/signup">Request access</Link>. A captain approves it before
             you can see the clubhouse. Already invited? Open the join link they sent you.
           </p>
+          <p className="fine-print legal-links">
+            <Link to="/privacy">Privacy</Link>
+            <Link to="/terms">Terms</Link>
+          </p>
         </form>
       </section>
     </div>

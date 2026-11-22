@@ -87,6 +87,7 @@ export function Shell() {
           <NavLink to="/activities">Activities</NavLink>
           <NavLink to="/schedules">Schedules</NavLink>
           <NavLink to="/streams">Streams</NavLink>
+          {staff ? <NavLink to="/broadcasts">Broadcasts</NavLink> : null}
           <NavLink to="/polls">Polls</NavLink>
           <NavLink to="/dues">Dues</NavLink>
           <NavLink to="/feedback">Feedback</NavLink>

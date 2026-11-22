@@ -8,6 +8,7 @@ export function ConfirmDialog({
   onCancel,
   extra,
   busy,
+  busyLabel = 'Removing…',
 }: {
   title: string
   body: string
@@ -16,6 +17,7 @@ export function ConfirmDialog({
   onCancel: () => void
   extra?: { label: string; onClick: () => void }
   busy?: boolean
+  busyLabel?: string
 }) {
   const titleId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -62,7 +64,7 @@ export function ConfirmDialog({
             </button>
           ) : null}
           <button type="button" className="button button-navy" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Removing…' : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </button>
         </div>
       </div>

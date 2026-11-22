@@ -98,3 +98,28 @@ verify_jwt = true
 
 [functions.request-stream-job]
 verify_jwt = true
+
+# youtube-oauth-start begins the admin consent for the CricketCrazeUSA
+# channel. The gateway requires a user JWT. The handler calls getUser and
+# requires profiles.role = admin. Secrets, never source: YT_OAUTH_CLIENT_ID,
+# YT_OAUTH_CLIENT_SECRET.
+
+[functions.youtube-oauth-start]
+verify_jwt = true
+
+# youtube-oauth-callback is the Google redirect URI. Google's browser
+# navigation has no Supabase JWT, so the gateway check stays off. The handler
+# accepts the request only when state is a signed, unexpired, single-use
+# value created by youtube-oauth-start for that admin. Deploy this function
+# with verify_jwt disabled. Do not turn the gateway check back on.
+
+[functions.youtube-oauth-callback]
+verify_jwt = false
+
+# youtube-broadcasts lists, tests, starts, and ends broadcasts for a
+# signed-in captain or admin. The gateway requires a user JWT. The handler
+# calls getUser and checks profiles.role. Refresh tokens stay in
+# private.youtube_connections.
+
+[functions.youtube-broadcasts]
+verify_jwt = true

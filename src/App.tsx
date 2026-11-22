@@ -25,6 +25,9 @@ import { SchedulesPage } from './pages/SchedulesPage.tsx'
 import { GameCardPreviewPage } from './pages/GameCardPreviewPage.tsx'
 import { StreamPreviewPage } from './pages/StreamPreviewPage.tsx'
 import { StreamsPage } from './pages/StreamsPage.tsx'
+import { BroadcastsPage } from './pages/BroadcastsPage.tsx'
+import { BroadcastsPreviewPage } from './pages/BroadcastsPreviewPage.tsx'
+import { PrivacyPage, TermsPage } from './pages/LegalPage.tsx'
 import { SetupNotice } from './pages/SetupNotice.tsx'
 
 function SendRecoveryToReset() {
@@ -34,7 +37,9 @@ function SendRecoveryToReset() {
   if (
     location.pathname === '/reset-password' ||
     location.pathname === '/login' ||
-    location.pathname === '/auth/callback'
+    location.pathname === '/auth/callback' ||
+    location.pathname === '/privacy' ||
+    location.pathname === '/terms'
   ) {
     return null
   }
@@ -46,7 +51,8 @@ export default function App() {
     import.meta.env.DEV &&
     (window.location.pathname.startsWith('/dev/stream-states') ||
       window.location.pathname.startsWith('/dev/game-cards') ||
-      window.location.pathname.startsWith('/dev/sheet-dues'))
+      window.location.pathname.startsWith('/dev/sheet-dues') ||
+      window.location.pathname.startsWith('/dev/broadcasts'))
   ) {
     return (
       <BrowserRouter>
@@ -54,12 +60,26 @@ export default function App() {
           <Route path="/dev/stream-states" element={<StreamPreviewPage />} />
           <Route path="/dev/game-cards" element={<GameCardPreviewPage />} />
           <Route path="/dev/sheet-dues" element={<SheetDuesPreviewPage />} />
+          <Route path="/dev/broadcasts" element={<BroadcastsPreviewPage />} />
         </Routes>
       </BrowserRouter>
     )
   }
 
-  if (!supabase) return <SetupNotice />
+  if (!supabase) {
+    const publicPath = window.location.pathname.replace(/\/$/, '') || '/'
+    if (publicPath === '/privacy' || publicPath === '/terms') {
+      return (
+        <BrowserRouter>
+          <Routes>
+            <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+          </Routes>
+        </BrowserRouter>
+      )
+    }
+    return <SetupNotice />
+  }
 
   return (
     <AuthProvider>
@@ -70,7 +90,10 @@ export default function App() {
           {import.meta.env.DEV ? <Route path="/dev/stream-states" element={<StreamPreviewPage />} /> : null}
           {import.meta.env.DEV ? <Route path="/dev/game-cards" element={<GameCardPreviewPage />} /> : null}
           {import.meta.env.DEV ? <Route path="/dev/sheet-dues" element={<SheetDuesPreviewPage />} /> : null}
+          {import.meta.env.DEV ? <Route path="/dev/broadcasts" element={<BroadcastsPreviewPage />} /> : null}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/auth/callback" element={<AuthCallbackPage />} />
           <Route path="/join/:token" element={<JoinPage />} />
           <Route path="/signup" element={<SignupPage />} />
@@ -84,6 +107,7 @@ export default function App() {
               <Route path="/activities" element={<ActivitiesPage />} />
               <Route path="/schedules" element={<SchedulesPage />} />
               <Route path="/streams" element={<StreamsPage />} />
+              <Route path="/broadcasts" element={<BroadcastsPage />} />
               <Route path="/polls" element={<PollsPage />} />
               <Route path="/dues" element={<DuesPage />} />
               <Route path="/dues/:memberId" element={<DuesPage />} />
