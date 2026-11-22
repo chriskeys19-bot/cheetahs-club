@@ -6,6 +6,8 @@ export type StreamsValue = {
   streams: GameStream[]
   jobs: StreamJob[]
   keys: StreamKey[]
+  /** game_stream ids that have a stream_jobs row with action end and status done. */
+  confirmedEndStreamIds: readonly string[]
   error: string | null
   reload: () => Promise<void>
 }

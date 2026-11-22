@@ -85,6 +85,7 @@ const board: StreamsValue = {
   streams: [readyStream, failedStream],
   jobs: [],
   keys: [],
+  confirmedEndStreamIds: [],
   error: null,
   reload: async () => undefined,
 }

@@ -7,6 +7,7 @@ import {
   parseStreamScorecardUrl,
   preferredOverlayUrl,
   streamStatusLabel,
+  YOUTUBE_END_UNCONFIRMED_NOTE,
   type GameStream,
   type StreamKey,
   type StreamLive,
@@ -72,6 +73,7 @@ export function StreamDialog({
   const hideEndRef = useRef<() => void>(() => undefined)
   const titleId = useId()
   const endConfirmId = useId()
+  const endNoteId = useId()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   const cancelEndRef = useRef<HTMLButtonElement>(null)
@@ -532,8 +534,19 @@ export function StreamDialog({
             ))}
           </div>
         ) : null}
+        {!loading && canEndStream && stream?.status === 'ended' ? (
+          <p id={endNoteId} className="fine-print stream-end-note">
+            {YOUTUBE_END_UNCONFIRMED_NOTE}
+          </p>
+        ) : null}
         {!loading && canEndStream && !confirmingEnd ? (
-          <button type="button" className="button button-danger" onClick={showEndConfirm} disabled={pending}>
+          <button
+            type="button"
+            className="button button-danger"
+            onClick={showEndConfirm}
+            disabled={pending}
+            aria-describedby={stream?.status === 'ended' ? endNoteId : undefined}
+          >
             End stream
           </button>
         ) : null}
@@ -550,7 +563,13 @@ export function StreamDialog({
               >
                 Cancel
               </button>
-              <button type="button" className="button button-danger" onClick={onEnd} disabled={pending}>
+              <button
+                type="button"
+                className="button button-danger"
+                onClick={onEnd}
+                disabled={pending}
+                aria-describedby={stream?.status === 'ended' ? endNoteId : undefined}
+              >
                 {pending ? 'Queuing…' : 'End stream'}
               </button>
             </div>

@@ -3015,6 +3015,10 @@ textarea.note-field {
   background: color-mix(in srgb, var(--color-accent) 32%, var(--color-surface-raised));
 }
 
+.stream-end-note {
+  margin: 4px 0 0;
+}
+
 .stream-end-confirm {
   display: grid;
   gap: 12px;

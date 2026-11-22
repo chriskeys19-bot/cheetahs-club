@@ -397,14 +397,44 @@ export function isPublicStreamStatus(status: StreamStatus): boolean {
   )
 }
 
+/** Shown on End stream when status is ended but YouTube was not stopped by a done end job. */
+export const YOUTUBE_END_UNCONFIRMED_NOTE = 'Marked ended, but YouTube end not confirmed'
+
+/** Distinct game_stream ids from `{ game_stream_id }` rows (the done-end lookup). */
+export function parseConfirmedEndStreamIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const ids: string[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const id = (item as { game_stream_id?: unknown }).game_stream_id
+    if (typeof id !== 'string' || ids.includes(id)) continue
+    ids.push(id)
+  }
+  return ids
+}
+
+/**
+ * YouTube end is confirmed only by a stream_jobs row with action end and status done.
+ * confirmedStreamIds comes from that lookup. jobs covers a done end that just landed
+ * in the live board before the lookup refreshes.
+ */
+export function streamEndConfirmed(
+  streamId: string,
+  confirmedStreamIds: readonly string[],
+  jobs: Pick<StreamJob, 'game_stream_id' | 'action' | 'status'>[] = [],
+): boolean {
+  if (confirmedStreamIds.includes(streamId)) return true
+  return jobs.some((job) => job.game_stream_id === streamId && job.action === 'end' && job.status === 'done')
+}
+
 export function shouldAutoEnd(
   completed: boolean,
   stream: Pick<GameStream, 'status' | 'youtube_url' | 'youtube_video_id'> | null,
   jobOpen: boolean,
+  endConfirmed = false,
 ): boolean {
-  if (!completed || !stream || jobOpen) return false
+  if (!completed || !stream || jobOpen || endConfirmed) return false
   if (
-    stream.status === 'ended' ||
     stream.status === 'ending' ||
     stream.status === 'none' ||
     stream.status === 'checking' ||
@@ -412,19 +442,28 @@ export function shouldAutoEnd(
   ) {
     return false
   }
+  // A completed game marked ended without a done end job still needs YouTube stopped.
+  // Skip it when there is no video id for the processor to end, and when a job is open.
+  if (stream.status === 'ended') return Boolean(stream.youtube_video_id)
   if (stream.status === 'failed' && !stream.youtube_url && !stream.youtube_video_id) return false
   return true
 }
 
-/** Pop-up End stream button: captain or admin, a YouTube video, and no open job. */
+/**
+ * Pop-up End stream button: captain or admin, a YouTube video, and no open job.
+ * Stays up after status ended until a done end job confirms YouTube stopped.
+ * Hidden while status is ending, and hidden once that done end job exists.
+ */
 export function canManuallyEndStream(
   role: string | null | undefined,
   stream: Pick<GameStream, 'status' | 'youtube_url' | 'youtube_video_id'> | null,
   jobOpen: boolean,
+  endConfirmed = false,
 ): boolean {
   if (!isClubRole(role) || !canManageClub(role)) return false
-  if (!stream || jobOpen) return false
-  if (stream.status === 'none' || stream.status === 'ending' || stream.status === 'ended') return false
+  if (!stream || jobOpen || endConfirmed) return false
+  if (stream.status === 'none' || stream.status === 'ending') return false
+  if (stream.status === 'ended') return Boolean(stream.youtube_video_id)
   return Boolean(stream.youtube_url || stream.youtube_video_id)
 }
 

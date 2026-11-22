@@ -18,6 +18,7 @@ import {
   shouldAutoCheck,
   shouldAutoEnd,
   streamControlVisible,
+  streamEndConfirmed,
   streamWithEarlyOverlay,
   type StreamAction,
   type StreamLive,
@@ -56,6 +57,7 @@ export function GameStreamControls({
   const shownStream = streamWithEarlyOverlay(stream, earlyOverlay)
   const openJob = stream ? openJobFor(board.jobs, stream.id) : null
   const latestJob = stream ? latestJobFor(board.jobs, stream.id) : null
+  const endConfirmed = stream ? streamEndConfirmed(stream.id, board.confirmedEndStreamIds, board.jobs) : false
   const live = liveStreamMessage(shownStream, openJob ?? latestJob)
   const occupiedKeyNames = occupiedStreamKeyNames(board.streams, stream?.id)
   const staff = isClubRole(profile?.role) && canManageClub(profile?.role)
@@ -118,12 +120,12 @@ export function GameStreamControls({
       return
     }
     if (autoEnd.current) return
-    if (!shouldAutoEnd(completed, stream, Boolean(openJob))) return
+    if (!shouldAutoEnd(completed, stream, Boolean(openJob), endConfirmed)) return
     autoEnd.current = true
     void run('end')
     // run is recreated each render. The refs make each automatic job happen once per open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, board.ready, completed, stream, openJob])
+  }, [open, board.ready, completed, stream, openJob, endConfirmed])
 
   const reportedVideo = useRef<string | null>(null)
   useEffect(() => {
@@ -147,7 +149,12 @@ export function GameStreamControls({
   const canEditStatus = canEditStreamField(profile?.role, session?.user.id, stream?.requested_by, 'status')
   // End follows the saved profile role. "View as" only changes profile.role, and the
   // database still treats that account as admin or captain.
-  const canEndStream = canManuallyEndStream(accountProfile?.role ?? profile?.role, shownStream, Boolean(openJob))
+  const canEndStream = canManuallyEndStream(
+    accountProfile?.role ?? profile?.role,
+    shownStream,
+    Boolean(openJob),
+    endConfirmed,
+  )
 
   async function save(field: StreamTextField, value: string) {
     if (!stream) return

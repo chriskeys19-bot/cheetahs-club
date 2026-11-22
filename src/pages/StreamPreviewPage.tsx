@@ -146,7 +146,8 @@ export function StreamPreviewPage() {
   const roleParam = params.get('role')
   const role = roleParam === 'player' || roleParam === 'admin' || roleParam === 'captain' ? roleParam : 'captain'
   const model = previewModel(state)
-  const canEnd = canManuallyEndStream(role, model.stream, model.live.busy)
+  const endConfirmed = params.get('confirmed') === '1'
+  const canEnd = canManuallyEndStream(role, model.stream, model.live.busy, endConfirmed)
   const roleLabel = { admin: 'Admin', captain: 'Captain', player: 'Player' }[role]
 
   useEffect(() => {
@@ -203,7 +204,7 @@ export function StreamPreviewPage() {
         <p>Mock rows for the stream pop-up. Nothing here is saved. Viewing as {roleLabel}.</p>
       </article>
       <StreamDialog
-        key={`${role}-${params.get('confirm') ?? ''}-${requested}`}
+        key={`${role}-${params.get('confirm') ?? ''}-${params.get('confirmed') ?? ''}-${requested}`}
         title="Alpha vs Tracy Centurions"
         when="Sun, Nov 8 · 9:30 AM Pacific"
         stream={model.stream}

@@ -4,6 +4,7 @@ import {
   isJobStatus,
   isStreamAction,
   isStreamStatus,
+  parseConfirmedEndStreamIds,
   parseHttpsUrl,
   parseStreamScorecardUrl,
   type GameStream,
@@ -101,21 +102,33 @@ export type StreamBoard = {
   streams: GameStream[]
   jobs: StreamJob[]
   keys: StreamKey[]
+  confirmedEndStreamIds: string[]
   error: string | null
 }
 
 export async function loadStreamBoard(): Promise<StreamBoard> {
-  if (!supabase) return { streams: [], jobs: [], keys: [], error: 'Supabase is not configured.' }
-  const [streams, jobs, keys] = await Promise.all([
+  if (!supabase) {
+    return { streams: [], jobs: [], keys: [], confirmedEndStreamIds: [], error: 'Supabase is not configured.' }
+  }
+  // stream_jobs_select_member lets every signed-in member read jobs, and the
+  // restrictive active_member_only policy limits that to active members.
+  // Staff are active members, so this select is allowed. It asks only for
+  // done end jobs (game_stream_id), which is what "YouTube end confirmed" means.
+  // stream_jobs_confirmed_end_idx covers the filter. The 200-row job list below
+  // can drop an older done end, so this query is separate.
+  const [streams, jobs, keys, confirmedEnds] = await Promise.all([
     supabase.from('game_streams').select(STREAM_COLUMNS),
     supabase.from('stream_jobs').select(JOB_COLUMNS).order('created_at', { ascending: false }).limit(200),
     supabase.from('stream_keys').select(KEY_COLUMNS).eq('active', true).order('sort_order', { ascending: true }),
+    supabase.from('stream_jobs').select('game_stream_id').eq('action', 'end').eq('status', 'done'),
   ])
-  const error = streams.error?.message ?? jobs.error?.message ?? keys.error?.message ?? null
+  const error =
+    streams.error?.message ?? jobs.error?.message ?? keys.error?.message ?? confirmedEnds.error?.message ?? null
   return {
     streams: parseList(streams.data, parseGameStream),
     jobs: parseList(jobs.data, parseStreamJob),
     keys: parseList(keys.data, parseStreamKey),
+    confirmedEndStreamIds: parseConfirmedEndStreamIds(confirmedEnds.data),
     error,
   }
 }
