@@ -14,6 +14,7 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
   const [streams, setStreams] = useState<GameStream[]>([])
   const [jobs, setJobs] = useState<StreamJob[]>([])
   const [keys, setKeys] = useState<StreamKey[]>([])
+  const [confirmedEndStreamIds, setConfirmedEndStreamIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -22,6 +23,7 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
     setStreams(next.streams)
     setJobs(next.jobs)
     setKeys(next.keys)
+    setConfirmedEndStreamIds(next.confirmedEndStreamIds)
     setError(next.error)
     setReady(true)
   }, [])
@@ -41,6 +43,7 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
       setStreams(next.streams)
       setJobs(next.jobs)
       setKeys(next.keys)
+      setConfirmedEndStreamIds(next.confirmedEndStreamIds)
       setError(next.error)
       setReady(true)
     })
@@ -68,7 +71,14 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
           return
         }
         const parsed = parseStreamJob(payload.new)
-        if (parsed) setJobs((current) => upsertById(current, parsed))
+        if (parsed) {
+          setJobs((current) => upsertById(current, parsed))
+          if (parsed.action === 'end' && parsed.status === 'done') {
+            setConfirmedEndStreamIds((current) =>
+              current.includes(parsed.game_stream_id) ? current : [...current, parsed.game_stream_id],
+            )
+          }
+        }
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') void reload()
@@ -81,8 +91,8 @@ export function StreamsProvider({ children }: { children: ReactNode }) {
   }, [reload])
 
   const value = useMemo(
-    () => ({ ready, streams, jobs, keys, error, reload }),
-    [ready, streams, jobs, keys, error, reload],
+    () => ({ ready, streams, jobs, keys, confirmedEndStreamIds, error, reload }),
+    [ready, streams, jobs, keys, confirmedEndStreamIds, error, reload],
   )
 
   return <StreamsContext.Provider value={value}>{children}</StreamsContext.Provider>

@@ -13,6 +13,9 @@ import {
   shouldAutoCheck,
   canManuallyEndStream,
   shouldAutoEnd,
+  streamEndConfirmed,
+  parseConfirmedEndStreamIds,
+  YOUTUBE_END_UNCONFIRMED_NOTE,
   failedStreamChipHidden,
   streamControlVisible,
   streamNeedsLiveRefresh,
@@ -361,7 +364,13 @@ test('opening a completed stream queues end once', () => {
   assert.equal(shouldAutoEnd(true, row, false), true)
   assert.equal(shouldAutoEnd(true, row, true), false)
   assert.equal(shouldAutoEnd(false, row, false), false)
+  assert.equal(shouldAutoEnd(true, row, false, true), false)
   assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_url: 'https://youtube.com/watch?v=abc' }), false), false)
+  assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_video_id: 'abc' }), false), true)
+  assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_video_id: 'abc' }), true), false)
+  assert.equal(shouldAutoEnd(true, stream({ status: 'ended', youtube_video_id: 'abc' }), false, true), false)
+  assert.equal(shouldAutoEnd(false, stream({ status: 'ended', youtube_video_id: 'abc' }), false), false)
+  assert.equal(shouldAutoEnd(true, stream({ status: 'ending', youtube_video_id: 'abc' }), false), false)
 })
 
 test('an admin can end the ready Tracy Centurions stream when no job is open', () => {
@@ -375,7 +384,13 @@ test('an admin can end the ready Tracy Centurions stream when no job is open', (
   assert.equal(canManuallyEndStream('captain', row, false), true)
   assert.equal(canManuallyEndStream('player', row, false), false)
   assert.equal(canManuallyEndStream('admin', row, true), false)
-  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended' }, false), false)
+  assert.equal(canManuallyEndStream('admin', row, false, true), false)
+  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended' }, false), true)
+  assert.equal(canManuallyEndStream('captain', { ...row, status: 'ended' }, false), true)
+  assert.equal(canManuallyEndStream('player', { ...row, status: 'ended' }, false), false)
+  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended' }, false, true), false)
+  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended' }, true, false), false)
+  assert.equal(canManuallyEndStream('admin', { ...row, status: 'ended', youtube_video_id: null }, false), false)
 })
 
 test('manual end is captains and admins while a YouTube video is up', () => {
@@ -388,6 +403,14 @@ test('manual end is captains and admins while a YouTube video is up', () => {
   assert.equal(canManuallyEndStream('captain', null, false), false)
   assert.equal(
     canManuallyEndStream('captain', stream({ status: 'ended', youtube_url: 'https://youtube.com/watch?v=abc' }), false),
+    false,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'ended', youtube_video_id: 'abc' }), false),
+    true,
+  )
+  assert.equal(
+    canManuallyEndStream('captain', stream({ status: 'ended', youtube_video_id: 'abc' }), false, true),
     false,
   )
   assert.equal(
@@ -421,6 +444,30 @@ test('manual end is captains and admins while a YouTube video is up', () => {
     false,
   )
   assert.equal(shouldAutoEnd(true, stream({ status: 'updating_stream', youtube_url: 'https://youtube.com/watch?v=abc' }), true), false)
+})
+
+test('a done end job confirms YouTube stopped', () => {
+  const done = { game_stream_id: 'stream-1', action: 'end' as const, status: 'done' as const }
+  const failed = { game_stream_id: 'stream-1', action: 'end' as const, status: 'failed' as const }
+  const pending = { game_stream_id: 'stream-1', action: 'end' as const, status: 'pending' as const }
+  const other = { game_stream_id: 'stream-2', action: 'end' as const, status: 'done' as const }
+  const created = { game_stream_id: 'stream-1', action: 'create' as const, status: 'done' as const }
+  assert.equal(streamEndConfirmed('stream-1', ['stream-1']), true)
+  assert.equal(streamEndConfirmed('stream-1', [], [done]), true)
+  assert.equal(streamEndConfirmed('stream-1', [], [failed, pending, created, other]), false)
+  assert.equal(streamEndConfirmed('stream-1', []), false)
+  assert.deepEqual(
+    parseConfirmedEndStreamIds([
+      { game_stream_id: 'stream-1' },
+      { game_stream_id: 'stream-1' },
+      { game_stream_id: 'stream-2' },
+      { game_stream_id: 3 },
+      null,
+    ]),
+    ['stream-1', 'stream-2'],
+  )
+  assert.deepEqual(parseConfirmedEndStreamIds(null), [])
+  assert.equal(YOUTUBE_END_UNCONFIRMED_NOTE, 'Marked ended, but YouTube end not confirmed')
 })
 
 test('public list is upcoming or live only', () => {
