@@ -24,7 +24,7 @@ The OAuth client already exists.
 | Privacy policy | `https://cheetahs-club.pages.dev/privacy` |
 | Terms of service | `https://cheetahs-club.pages.dev/terms` |
 
-Those three URLs are what the consent screen asks for before the app can be published to Production. `/privacy` and `/terms` are public static pages. They load without signing in. Cloudflare Pages serves `public/privacy.html` and `public/terms.html` for those paths (`public/_redirects`).
+Those three URLs are what the consent screen asks for before the app can be published to Production. `/privacy` and `/terms` are public static pages. They load without signing in. The files are `public/privacy.html` and `public/terms.html`. Pages serves those clean URLs itself. Do not add a `_redirects` rule that points them back at the `.html` files. That loops.
 
 The redirect URI is the Edge Function, not the clubhouse. Do not add `https://cheetahs-club.pages.dev/broadcasts` as a Google redirect URI. After Google returns the code, the function sends the browser to the Broadcasts page.
 
